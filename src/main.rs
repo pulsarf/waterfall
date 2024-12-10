@@ -295,15 +295,17 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
     thread::spawn(move || {
         let mut message_buffer = [0; 1024];
 
-        let mut what = client_clone.lock();
-        let mut whatt = server_clone.lock();
+        let mut client_ref = client_clone.lock();
+        let mut server_ref = server_clone.lock();
 
         loop {
-            let safe_client: &mut MutexGuard<TcpStream> = what.as_mut().unwrap();
-            let safe_server: &mut MutexGuard<TcpStream> = whatt.as_mut().unwrap();
+            let safe_client: &mut MutexGuard<TcpStream> = client_ref.as_mut().unwrap();
+            let safe_server: &mut MutexGuard<TcpStream> = server_ref.as_mut().unwrap();
 
             match safe_client.read(&mut message_buffer) {
                 Ok(size) => {
+                    println!("From client: {:?}", message_buffer);
+
                     if safe_server.write_all(&message_buffer[..size]).is_err() {
                         break;
                     }
@@ -319,15 +321,17 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
     thread::spawn(move || {
         let mut message_buffer = [0; 1024];
 
-        let mut what = server_clone1.lock();
-        let mut whatt = client_clone1.lock();
+        let mut server_ref = server_clone1.lock();
+        let mut client_ref = client_clone1.lock();
 
         loop {
-            let safe_server: &mut MutexGuard<TcpStream> = what.as_mut().unwrap();
-            let safe_client: &mut MutexGuard<TcpStream> = whatt.as_mut().unwrap();
+            let safe_server: &mut MutexGuard<TcpStream> = server_ref.as_mut().unwrap();
+            let safe_client: &mut MutexGuard<TcpStream> = client_ref.as_mut().unwrap();
 
             match safe_server.read(&mut message_buffer) {
                 Ok(size) => {
+                    println!("From server: {:?}", message_buffer);
+
                     if safe_client.write_all(&message_buffer[..size]).is_err() {
                         break;
                     }
