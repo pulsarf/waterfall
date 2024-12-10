@@ -257,7 +257,24 @@ fn process_packet_udp(packet: &mut Packet) -> &mut Packet {
 }
 
 fn socks5_proxy(proxy_client: &mut TcpStream) {
-    let client: TcpStream = proxy_client.try_clone().unwrap();
+    let mut client: TcpStream = match proxy_client.try_clone() {
+        Ok(socket) => socket,
+        Err(error) => {
+            println!("Connection dropped: failed to clone socket. {:?}", proxy_client);
+
+            return;
+        }
+    };
+
+    let mut buffer = [0 as u8; 200];
+    
+    while match client.read(&mut buffer) {
+        Ok(s) => {
+            println!("{:?}", buffer);
+            true
+        },
+        Err(error) => false
+    } {}
 
     println!("Connection complete: {:?}", client);
 }
