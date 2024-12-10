@@ -1,6 +1,8 @@
 use std::{
-    io::{prelude::*, BufReader},
-    net::{TcpListener, TcpStream, SocketAddr},
+    io::{prelude::*},
+    net::{TcpStream, TcpListener},
+    sync::{Arc, Mutex},
+    thread
 };
 
 #[derive(Debug, Clone)]
@@ -79,7 +81,7 @@ impl IpParser {
                     port: 443u16
                 }
             },
-            other => {
+            _other => {
                 IpParser {
                     dest_addr_type,
                     host_raw: vec![0, 0, 0, 0],
@@ -286,10 +288,53 @@ fn process_packet_udp(packet: &mut Packet) -> &mut Packet {
     packet
 }
 
+fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
+    let client_clone = Arc::clone(&client);
+    let server_clone = Arc::clone(&server);
+
+    thread::spawn(move || {
+        let mut message_buffer = [0 as u8, 1024];
+
+        let safe_client = client_clone.lock();
+        let safe_server = server_clone.lock();
+
+        while match safe_client.unwrap().read(&mut message_buffer) {
+            Ok(_size) => {
+                match safe_server.unwrap().write(&message_buffer) {
+                    Ok(_) => (),
+                    Err(_) => ()
+                }
+
+                true
+            },
+            Err(_err) => false
+        } {}
+    });
+
+    thread::spawn(move || {
+        let mut message_buffer = [0 as u8, 1024];
+
+        let safe_client = client_clone.lock();
+        let safe_server = server_clone.lock();
+
+        while match safe_server.unwrap().read(&mut message_buffer) {
+            Ok(_size) => {
+                match safe_client.unwrap().write(&message_buffer) {
+                    Ok(_) => (),
+                    Err(_) => ()
+                };
+
+                true
+            },
+            Err(_err) => false
+        } {}
+    });
+}
+
 fn socks5_proxy(proxy_client: &mut TcpStream) {
     let mut client: TcpStream = match proxy_client.try_clone() {
         Ok(socket) => socket,
-        Err(error) => {
+        Err(_error) => {
             println!("Connection dropped: failed to clone socket. {:?}", proxy_client);
 
             return;
@@ -299,24 +344,22 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
     let mut buffer = [0 as u8; 200];
 
     let mut state_auth: bool = false;
-    let mut state_ip_parsed: bool = false;
     
     while match client.read(&mut buffer) {
-        Ok(s) => {
+        Ok(_s) => {
             if !state_auth {
                 // Client authentification packet. Reply with [5, 1] which stands for
                 // no-authentification 
 
                 match client.write(&[0x05, 0x00]) {
-                    Ok(size) => println!("Authentification complete!"),
-                    Err(error) => return
+                    Ok(_size) => println!("Authentification complete!"),
+                    Err(_error) => return
                 }
 
                 state_auth = true;
-            } else if !state_ip_parsed {
+            } else {
                 let mut parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
 
-                state_ip_parsed = true;
                 println!("Parsed IP data: {:?}", parsed_data);
 
                 // Accept authentification and return connected IP
@@ -340,16 +383,23 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
                 // Create a socket connection and pipe to messages receiver 
                 // Which is wrapped in other function
                 
-                let mut server_socket = TcpStream::connect(
+                let server_socket = TcpStream::connect(
                     parsed_data.host_raw.
                     iter_mut()
                     .map(|fag| fag.to_string())
                     .collect::<Vec<_>>()
                     .join(".") + ":" + &parsed_data.port.to_string());
 
+                println!("Socket instanced");
+
                 match server_socket {
                     Ok(socket) => {
                         println!("Connected to socket: {:?}", socket);
+
+                        let client_ref: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(client));
+                        let server_ref: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(server));
+
+                        pipe_sockets(client_ref, socket_ref);
 
                         return;
                     },
@@ -362,7 +412,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
 
             true
         },
-        Err(error) => false
+        Err(_error) => false
     } {}
 
     println!("Connection complete: {:?}", client);
@@ -411,30 +461,25 @@ fn main() {
         server_drop_if_autocorrupt: true,
     };
 
-    /**
-    == EXAMPLE ==
+    // == EXAMPLE ==
 
-    let packet: Vec<u8> = vec![
-        0x16, 0x03, 0x03, 0x00, 0xC8, 0x01, 0x00, 0xB8,
-        0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x06, 0x00, 0x35, 0x00, 0x3C, 0x00,
-        0xBA, 0x01, 0x00, 0x00, 0x30, 0x00, 0x08, 0x08,
-        0x06, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65,
-        0x2E, 0x63, 0x6F, 0x6D, 0x2B, 0x03, 0x03, 0x0A,
-        0x0C, 0x00, 0x17, 0x00, 0x18,
-    ];
+    // let packet: Vec<u8> = vec![
+    //     0x16, 0x03, 0x03, 0x00, 0xC8, 0x01, 0x00, 0xB8,
+    //     0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    //     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    //     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    //     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    //     0x00, 0x00, 0x06, 0x00, 0x35, 0x00, 0x3C, 0x00,
+    //     0xBA, 0x01, 0x00, 0x00, 0x30, 0x00, 0x08, 0x08,
+    //     0x06, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65,
+    //     0x2E, 0x63, 0x6F, 0x6D, 0x2B, 0x03, 0x03, 0x0A,
+    //     0x0C, 0x00, 0x17, 0x00, 0x18,
+    // ];
     
-    let packets_split: PacketAbstraction = split_packet_tcp(packet.clone(), config.clone());
-    let packets_data: PacketAbstraction = process_server_message_tcp(packet.clone(), config.clone());
-    **/
-
     println!("Waterfall config: {:#?}", config);
     
-    /// println!("[LOGGER] Client data: {:#?}", packets_split);
-    /// println!("[LOGGER] Server data: {:#?}", packets_data);
+    // println!("[LOGGER] Client data: {:#?}", packets_split);
+    // println!("[LOGGER] Server data: {:#?}", packets_data);
 
     let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
     
