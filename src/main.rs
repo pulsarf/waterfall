@@ -299,15 +299,20 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
         let mut server_ref = server_clone.lock();
 
         loop {
-            let safe_client: &mut MutexGuard<TcpStream> = client_ref.as_mut().unwrap();
-            let safe_server: &mut MutexGuard<TcpStream> = server_ref.as_mut().unwrap();
+            let safe_client: &mut MutexGuard<TcpStream> = match client_ref.as_mut() {
+                Ok(_ref) => _ref,
+                Err(_) => continue,
+            };
+
+            let safe_server: &mut MutexGuard<TcpStream> = match server_ref.as_mut() {
+                Ok(_ref) => _ref,
+                Err(_) => continue,
+            };
 
             match safe_client.read(&mut message_buffer) {
                 Ok(size) => {
-                    println!("From client: {:?}", message_buffer);
-
-                    if safe_server.write_all(&message_buffer[..size]).is_err() {
-                        break;
+                    if safe_server.write_all(&message_buffer[..size]).is_ok() {
+                        println!("From client: {:?}", message_buffer);
                     }
                 },
                 Err(_) => break,
@@ -325,15 +330,20 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
         let mut client_ref = client_clone1.lock();
 
         loop {
-            let safe_server: &mut MutexGuard<TcpStream> = server_ref.as_mut().unwrap();
-            let safe_client: &mut MutexGuard<TcpStream> = client_ref.as_mut().unwrap();
+            let safe_server: &mut MutexGuard<TcpStream> = match server_ref.as_mut() {
+                Ok(_ref) => _ref,
+                Err(_) => continue,
+            };
+
+            let safe_client: &mut MutexGuard<TcpStream> = match client_ref.as_mut() {
+                Ok(_ref) => _ref,
+                Err(_) => continue,
+            };
 
             match safe_server.read(&mut message_buffer) {
                 Ok(size) => {
-                    println!("From server: {:?}", message_buffer);
-
-                    if safe_client.write_all(&message_buffer[..size]).is_err() {
-                        break;
+                    if safe_client.write_all(&message_buffer[..size]).is_ok() {
+                        println!("From server: {:?}", message_buffer);
                     }
                 },
                 Err(_) => break,
@@ -410,7 +420,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
                         let client_ref: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(client));
                         let server_ref: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(socket));
 
-                        pipe_sockets(client_ref, server_ref);
+                        thread::spawn(move || pipe_sockets(client_ref, server_ref));
 
                         return;
                     },
