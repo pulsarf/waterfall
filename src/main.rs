@@ -1,6 +1,6 @@
 use std::{
     io::{prelude::*, BufReader},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpStream, SocketAddr},
 };
 
 #[derive(Debug, Clone)]
@@ -58,6 +58,36 @@ struct Packet {
     is_udp: bool,
     is_out_of_band: bool,
     synchronize_mss: u16
+}
+
+#[derive(Debug, Clone)]
+struct IpParser {
+    host_raw: Vec<u8>,
+    port: u16,
+    dest_addr_type: u8
+}
+
+impl IpParser {
+    fn parse(buffer: Vec<u8>) -> IpParser {
+        let dest_addr_type: u8 = buffer[1];
+
+        return match dest_addr_type {
+            1 => {
+                IpParser {
+                    dest_addr_type,
+                    host_raw: vec![buffer[4], buffer[5], buffer[6], buffer[7]],
+                    port: 443u16
+                }
+            },
+            other => {
+                IpParser {
+                    dest_addr_type,
+                    host_raw: vec![0, 0, 0, 0],
+                    port: 443u16
+                }
+            }
+        }
+    }
 }
 
 impl Packet {
@@ -267,10 +297,69 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
     };
 
     let mut buffer = [0 as u8; 200];
+
+    let mut state_auth: bool = false;
+    let mut state_ip_parsed: bool = false;
     
     while match client.read(&mut buffer) {
         Ok(s) => {
-            println!("{:?}", buffer);
+            if !state_auth {
+                // Client authentification packet. Reply with [5, 1] which stands for
+                // no-authentification 
+
+                match client.write(&[0x05, 0x00]) {
+                    Ok(size) => println!("Authentification complete!"),
+                    Err(error) => return
+                }
+
+                state_auth = true;
+            } else if !state_ip_parsed {
+                let mut parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
+
+                state_ip_parsed = true;
+                println!("Parsed IP data: {:?}", parsed_data);
+
+                // Accept authentification and return connected IP
+                // By default, if connected IP is not equal to the one
+                // Client have chosen, the connection is dropped
+                // So we can't just put [0, 0, 0, 0]
+
+                // Server accept structure:
+                // 0x05, 0, 0, dest_addr_type as u8, ..parsed_ip, port.as_bytes()
+                
+                let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
+
+                packet.extend_from_slice(&parsed_data.host_raw.as_slice());
+                packet.extend_from_slice(&parsed_data.port.to_be_bytes());
+
+                match client.write(&packet) {
+                    Ok(_size) => println!("[Auth] Accepted! {:?}", buffer),
+                    Err(_error) => return
+                }
+
+                // Create a socket connection and pipe to messages receiver 
+                // Which is wrapped in other function
+                
+                let mut server_socket = TcpStream::connect(
+                    parsed_data.host_raw.
+                    iter_mut()
+                    .map(|fag| fag.to_string())
+                    .collect::<Vec<_>>()
+                    .join(".") + ":" + &parsed_data.port.to_string());
+
+                match server_socket {
+                    Ok(socket) => {
+                        println!("Connected to socket: {:?}", socket);
+
+                        return;
+                    },
+                    Err(_error) => {
+                        println!("FUCK THIS NIGGA WTF");
+                        panic!("yill kourself");
+                    }
+                }
+            }
+
             true
         },
         Err(error) => false
