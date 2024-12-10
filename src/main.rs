@@ -311,7 +311,7 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
 
             match safe_client.read(&mut message_buffer) {
                 Ok(size) => {
-                    if safe_server.write_all(&message_buffer[..size]).is_ok() {
+                    if safe_server.write(&message_buffer[..size]).is_ok() {
                         println!("From client: {:?}", message_buffer);
                     }
                 },
@@ -342,11 +342,13 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
 
             match safe_server.read(&mut message_buffer) {
                 Ok(size) => {
-                    if safe_client.write_all(&message_buffer[..size]).is_ok() {
+                    if safe_client.write(&message_buffer[..size]).is_ok() {
                         println!("From server: {:?}", message_buffer);
                     }
                 },
-                Err(_) => break,
+                Err(_err) => {
+                    println!("SERVER READ ERROR!!! {:?}", _err);
+                },
             }
         }
     });
