@@ -288,23 +288,6 @@ fn process_packet_udp(packet: &mut Packet) -> &mut Packet {
     packet
 }
 
-fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
-    let client_clone = Arc::clone(&client);
-    let server_clone = Arc::clone(&server);
-
-    thread::spawn(move || {
-        let mut client = client_clone.lock().unwrap();
-        let mut server = server.lock().unwrap();
-        io::copy(&mut *client, &mut *server).unwrap();
-    });
-
-    thread::spawn(move || {
-        let mut client = client.lock().unwrap();
-        let mut server = server_clone.lock().unwrap();
-        io::copy(&mut *server, &mut *client).unwrap();
-    });
-}
-
 fn socks5_proxy(proxy_client: &mut TcpStream) {
     let mut client: TcpStream = match proxy_client.try_clone() {
         Ok(socket) => socket,
@@ -367,13 +350,19 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
                 println!("Socket instanced");
 
                 match server_socket {
-                    Ok(socket) => {
+                    Ok(mut socket) => {
                         println!("Connected to socket: {:?}", socket);
 
-                        let client_ref: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(client));
-                        let server_ref: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(socket));
+                        let mut socket1: TcpStream = socket.try_clone().unwrap();
+                        let mut client1: TcpStream = client.try_clone().unwrap();
 
-                        thread::spawn(move || pipe_sockets(client_ref, server_ref));
+                        thread::spawn(move || {
+                            io::copy(&mut client, &mut socket).unwrap();
+                        });
+
+                        thread::spawn(move || {
+                            io::copy(&mut socket1, &mut client1).unwrap();
+                        });
 
                         return;
                     },
