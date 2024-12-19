@@ -1,5 +1,5 @@
 use std::{
-    io::{prelude::*},
+    io::{self, Read, Write, prelude::*},
     net::{TcpStream, TcpListener},
     sync::{Arc, Mutex, MutexGuard},
     thread
@@ -293,64 +293,15 @@ fn pipe_sockets(client: Arc<Mutex<TcpStream>>, server: Arc<Mutex<TcpStream>>) {
     let server_clone = Arc::clone(&server);
 
     thread::spawn(move || {
-        let mut message_buffer = [0; 1024];
-
-        let mut client_ref = client_clone.lock();
-        let mut server_ref = server_clone.lock();
-
-        loop {
-            let safe_client: &mut MutexGuard<TcpStream> = match client_ref.as_mut() {
-                Ok(_ref) => _ref,
-                Err(_) => continue,
-            };
-
-            let safe_server: &mut MutexGuard<TcpStream> = match server_ref.as_mut() {
-                Ok(_ref) => _ref,
-                Err(_) => continue,
-            };
-
-            match safe_client.read(&mut message_buffer) {
-                Ok(size) => {
-                    if safe_server.write(&message_buffer[..size]).is_ok() {
-                        println!("From client: {:?}", message_buffer);
-                    }
-                },
-                Err(_) => break,
-            }
-        }
+        let mut client = client_clone.lock().unwrap();
+        let mut server = server.lock().unwrap();
+        io::copy(&mut *client, &mut *server).unwrap();
     });
 
-    let client_clone1 = Arc::clone(&client);
-    let server_clone1 = Arc::clone(&server);
-
     thread::spawn(move || {
-        let mut message_buffer = [0; 1024];
-
-        let mut server_ref = server_clone1.lock();
-        let mut client_ref = client_clone1.lock();
-
-        loop {
-            let safe_server: &mut MutexGuard<TcpStream> = match server_ref.as_mut() {
-                Ok(_ref) => _ref,
-                Err(_) => continue,
-            };
-
-            let safe_client: &mut MutexGuard<TcpStream> = match client_ref.as_mut() {
-                Ok(_ref) => _ref,
-                Err(_) => continue,
-            };
-
-            match safe_server.read(&mut message_buffer) {
-                Ok(size) => {
-                    if safe_client.write(&message_buffer[..size]).is_ok() {
-                        println!("From server: {:?}", message_buffer);
-                    }
-                },
-                Err(_err) => {
-                    println!("SERVER READ ERROR!!! {:?}", _err);
-                },
-            }
-        }
+        let mut client = client.lock().unwrap();
+        let mut server = server_clone.lock().unwrap();
+        io::copy(&mut *server, &mut *client).unwrap();
     });
 }
 
