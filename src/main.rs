@@ -153,7 +153,9 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
               loop {
                 match socket.read(msg_buffer) {
                   Ok(size) => {
-                    client.write_all(&msg_buffer[..size]);
+                    if size > 0 {
+                      client.write_all(&msg_buffer[..size]);
+                    }
                   }, Err(_error) => continue
                 }
               }
@@ -165,7 +167,9 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
               loop {
                 match client1.read(msg_buffer) {
                   Ok(size) => {
-                    socket1.write_all(&msg_buffer[..size]);
+                    if size > 0 {
+                      socket1.write_all(&msg_buffer[..size]);
+                    }
 
                   }, Err(_error) => continue
                 }
@@ -175,8 +179,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
             return;
           },
           Err(_error) => {
-            println!("FUCK THIS NIGGA WTF");
-            panic!("yill kourself");
+            println!("Critical error happened! Couldn't restore from normal state, closing sockets.");
           }
         }
       }
