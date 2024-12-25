@@ -202,3 +202,29 @@ fn main() {
     };
   }
 }
+
+
+#[cfg(test)]
+
+mod tests {
+  use super::*;
+
+  #[test]
+
+  fn can_send_requests() {
+    thread::spawn(main);
+
+    use std::process::{Output, Command};
+    
+    let mut sender: Command = Command::new("curl");
+
+    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
+
+    sender.spawn().unwrap();
+
+    let output: Output = sender.output().unwrap();
+    let string: String = format!("{:?}", output);
+
+    assert_eq!(true, string.contains("Google"));
+  } 
+}
