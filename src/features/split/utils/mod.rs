@@ -1,5 +1,5 @@
 
-mod utils {
+pub mod utils {
   pub fn aob_scan(target: Vec<u8>, source: Vec<u8>) -> usize {
     for (position, window) in source.windows(target.len()).enumerate() {
       if window == target {
@@ -10,8 +10,8 @@ mod utils {
     return usize::MIN;
   }
 
-  pub fn slice_packet(source: Vec<u8>, index: u8) -> Vec<Vec<u8>> {
-    let mut current_index: u8 = 0;
+  pub fn slice_packet(source: Vec<u8>, index: u64) -> Vec<Vec<u8>> {
+    let mut current_index: u64 = 0;
 
     let mut alpha: Vec<u8> = Vec::new();
     let mut beta: Vec<u8> = Vec::new();
@@ -66,6 +66,29 @@ mod utils {
     }
 
     sni
+  }
+
+  pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {
+    'label: for iter in 0..source.len() {
+      if iter + 8 > source.len() {
+        break 'label;
+      }
+
+      if source[iter] != 0 || source[iter + 1] != 0 {
+        continue;
+      }
+
+      if ((source[iter + 3] as i64) - (source[iter + 5] as i64)).abs() != 2 {
+        continue;
+      }
+
+      let hostname_size: u32 = (((source[iter + 4] as u32) << 8) as u32 | (source[iter + 5] as u32)) as u32;
+      let start_index: u32 = (iter + 6).try_into().unwrap();
+
+      return (start_index, start_index + hostname_size);
+    }
+
+    (0, 0)
   }
 }
 

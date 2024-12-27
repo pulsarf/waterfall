@@ -1,24 +1,12 @@
+mod features;
+
+use crate::features::split::split;
+use std::net::Shutdown;
 use std::{
   io::{Read, Write},
   net::{TcpStream, TcpListener},
   thread
 };
-
-#[derive(Debug)]
-struct PacketAbstraction {
-  split_parts: Vec<Packet>,
-  send_after_inbound: Vec<Packet>
-}
-
-#[derive(Debug, Clone)]
-struct Packet {
-  raw_body: Vec<u8>,
-  time_to_live: u8,
-  is_udp: bool,
-  is_out_of_band: bool,
-  synchronize_mss: u16,
-  split_index: usize
-}
 
 #[derive(Debug, Clone)]
 struct IpParser {
@@ -50,33 +38,18 @@ impl IpParser {
   }
 }
 
-impl Packet {
-  fn new(default_ttl: u8, is_udp: bool, is_out_of_band: bool, split_index: usize) -> Packet {
-    let packet: Packet = Packet {
-      raw_body: vec![],
-      time_to_live: default_ttl,
-      is_udp, is_out_of_band, split_index,
-      synchronize_mss: 1500
-    };
+fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
+  let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
 
-    packet
+  if send_data.len() > 1 {
+    if let Err(_e) = socket.write_all(&send_data[0]) {
+      return data.to_vec();
+    }
+
+    return send_data.clone()[1].clone();
   }
 
-  fn push(&mut self, hex_byte: u8) -> u8 {
-    self.raw_body.push(hex_byte);
-
-    hex_byte
-  }
-
-  fn set_mss(&mut self, mss: u16) -> &mut Packet {
-    self.synchronize_mss = mss;
-
-    self
-  }
-
-  fn get_mutable(&mut self) -> &mut Packet {
-    self
-  }
+  data.to_vec()
 }
 
 fn socks5_proxy(proxy_client: &mut TcpStream) {
@@ -148,27 +121,31 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
             let mut client1: TcpStream = client.try_clone().unwrap();
 
             thread::spawn(move || {
-              let mut msg_buffer: &mut [u8] = &mut [0u8; 1024];
+              let msg_buffer: &mut [u8] = &mut [0u8; 1024];
 
               loop {
                 match socket.read(msg_buffer) {
                   Ok(size) => {
                     if size > 0 {
-                      client.write_all(&msg_buffer[..size]);
+                      let _ = client.write_all(&msg_buffer[..size]);
+                    } else {
+                      client.shutdown(Shutdown::Both);
                     }
-                  }, Err(_error) => continue
+                  }, Err(_error) => { }
                 }
               }
             });
 
             thread::spawn(move || {
-              let mut msg_buffer: &mut [u8] = &mut [0u8; 1024];
+              let msg_buffer: &mut [u8] = &mut [0u8; 1024];
 
               loop {
                 match client1.read(msg_buffer) {
                   Ok(size) => {
                     if size > 0 {
-                      socket1.write_all(&msg_buffer[..size]);
+                      let _ = socket1.write_all(&client_hook(socket1.try_clone().unwrap(), &msg_buffer[..size]));
+                    } else {
+                      socket1.shutdown(Shutdown::Both);
                     }
 
                   }, Err(_error) => continue
@@ -211,7 +188,7 @@ mod tests {
 
   #[test]
 
-  fn can_send_requests() {
+  fn can_send_requests_google() {
     thread::spawn(main);
 
     use std::process::{Output, Command};
@@ -220,11 +197,43 @@ mod tests {
 
     sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
 
-    sender.spawn().unwrap();
+    let output: Output = sender.output().unwrap();
+    let string: String = format!("{:?}", output);
+
+    assert_eq!(true, string.contains("google"));
+  } 
+
+  #[test]
+
+  fn can_send_requests_youtube() {
+    thread::spawn(main);
+
+    use std::process::{Output, Command};
+    
+    let mut sender: Command = Command::new("curl");
+
+    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
 
-    assert_eq!(true, string.contains("Google"));
+    assert_eq!(true, string.contains("google"));
+  } 
+
+  #[test]
+
+  fn can_send_requests_discord() {
+    thread::spawn(main);
+
+    use std::process::{Output, Command};
+    
+    let mut sender: Command = Command::new("curl");
+
+    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://discord.com/app");
+
+    let output: Output = sender.output().unwrap();
+    let string: String = format!("{:?}", output);
+
+    assert_eq!(true, string.contains("discord"));
   } 
 }
