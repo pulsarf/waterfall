@@ -1,5 +1,5 @@
 
-mod tamper {
+mod utils {
   pub fn aob_scan(target: Vec<u8>, source: Vec<u8>) -> usize {
     for (position, window) in source.windows(target.len()).enumerate() {
       if window == target {
@@ -29,23 +29,43 @@ mod tamper {
     vec![beta, alpha]
   }
 
+  // This is the laziest solution ever possible, but it works at least.
+  // Assuming SNI size is less than u8
   pub fn parse_sni(source: Vec<u8>) -> String {
-    if super::tamper::aob_scan(vec![16, 3, 3, 0, 31], source.clone()) == 0 {
-      let dyn_offset: u16 = 45u16 + ((source[44] as u16)) | (source[45] as u16);
+    let mut sni: String = String::from("");
 
-      let static_offset_start: u16 = dyn_offset + 13u16;
-      let static_offset_end: u16 = static_offset_start + source[static_offset_start as usize] as u16;
+    'label: for iter in 0..source.len() {
+      if iter + 8 > source.len() {
+        break 'label;
+      }
 
-      let mut sni: String = String::from("");
-      
-      for iter in static_offset_start..static_offset_end {
-        sni += &String::from_utf8_lossy(&[iter as u8]);
+      if source[iter] != 0 || source[iter + 1] != 0 {
+        continue;
+      }
+
+      if source[iter + 3] - source[iter + 5] != 2 {
+        continue;
+      }
+
+      let hostname_size: usize = (((source[iter + 4] as u32) << 8) as u32 | (source[iter + 5] as u32)) as usize;
+      println!("{:?}", hostname_size);
+      // Save the SNI and return from loop
+
+      for jter in iter..(iter + hostname_size) {
+        if jter > source.len() {
+          break;
+        }
+
+        match std::str::from_utf8(&[source[jter]]) {
+          Ok(ch) => sni += &ch,
+          Err(_) => continue 'label
+        }
       }
 
       return sni;
     }
 
-    return String::from("NULL.COM");
+    sni
   }
 }
 
@@ -57,7 +77,7 @@ mod tests {
   #[test]
 
   fn test_aob_scan_start() {
-    let pattern_start: usize = tamper::aob_scan(vec![0, 5], vec![0, 5, 6, 2]);
+    let pattern_start: usize = utils::aob_scan(vec![0, 5], vec![0, 5, 6, 2]);
 
     assert_eq!(0 as usize, pattern_start);
   }
@@ -66,14 +86,14 @@ mod tests {
 
   fn test_aob_scan_middle() {
     assert_eq!(3 as usize, 
-      tamper::aob_scan(vec![16, 43], vec![78, 34, 22, 16, 43, 27]));
+      utils::aob_scan(vec![16, 43], vec![78, 34, 22, 16, 43, 27]));
   }
 
   #[test]
 
   fn test_aob_scan_end() {
     assert_eq!(5 as usize,
-      tamper::aob_scan(vec![8, 1], vec![0, 0, 0, 0, 0, 8, 1]));
+      utils::aob_scan(vec![8, 1], vec![0, 0, 0, 0, 0, 8, 1]));
   }
 
   #[test]
@@ -81,7 +101,7 @@ mod tests {
   fn test_slice_packet() {
     let packet: Vec<u8> = vec![56, 78, 32];
 
-    let split_packet: Vec<Vec<u8>> = tamper::slice_packet(packet, 1);
+    let split_packet: Vec<Vec<u8>> = utils::slice_packet(packet, 1);
   
     assert_eq!(vec![56], split_packet[0]);
     assert_eq!(vec![78, 32], split_packet[1]);
@@ -90,8 +110,8 @@ mod tests {
   #[test]
 
   fn test_sni_parser() {
-    let packet: Vec<u8> = vec![];
+    let packet: Vec<u8> = vec![0, 0, 0, 12, 0, 10, 103, 111, 111, 103, 108, 101, 46, 99, 111, 109, 0, 0];
 
-    assert_eq!(tamper::parse_sni(packet), "google.com".to_owned());
+    assert_eq!(utils::parse_sni(packet), "google.com".to_owned());
   }
 }
