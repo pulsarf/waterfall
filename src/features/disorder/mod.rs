@@ -1,6 +1,6 @@
 pub mod utils;
 
-pub mod split {
+pub mod disorder {
   pub fn get_split_packet(packet_buffer: &[u8]) -> Vec<Vec<u8>> {
     use crate::features::disorder::utils::utils;
 
@@ -9,7 +9,7 @@ pub mod split {
 
     if middle < packet_buffer.to_vec().len().try_into().unwrap() && middle > 0 {
       let packet_parts: Vec<Vec<u8>> = utils::slice_packet(packet_buffer.to_vec(), middle);
-    
+
       return packet_parts;
     } else {
       return vec![packet_buffer.to_vec()];

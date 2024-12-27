@@ -1,6 +1,9 @@
 mod features;
 
 use crate::features::split::split;
+use crate::features::disorder::disorder;
+use crate::features::fake::fake;
+
 use std::net::Shutdown;
 use std::{
   io::{Read, Write},
@@ -38,18 +41,61 @@ impl IpParser {
   }
 }
 
-fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
-  let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
+struct Config {
+  split: bool,
+  disorder: bool,
+  fake: bool
+}
 
-  if send_data.len() > 1 {
-    if let Err(_e) = socket.write_all(&send_data[0]) {
-      return data.to_vec();
+fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
+  let config: Config = Config {
+    split: false,
+    disorder: true,
+    fake: false
+  };
+
+  if config.split {
+    let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
+
+    if send_data.len() > 1 {
+      if let Err(_e) = socket.write_all(&send_data[0]) {
+        return data.to_vec();
+      }
+
+      return send_data[1].clone();
     }
 
-    return send_data.clone()[1].clone();
-  }
+    return data.to_vec();
+  } else if config.disorder {
+    let send_data: Vec<Vec<u8>> = disorder::get_split_packet(data);
 
-  data.to_vec()
+    if send_data.len() > 1 {
+      socket.set_ttl(1);
+      socket.write_all(&send_data[0]);
+      socket.set_ttl(100);
+
+      return send_data[1].clone();
+    }
+
+    return data.to_vec();
+  } else if config.fake {
+    let send_data: Vec<Vec<u8>> = fake::get_split_packet(data);
+
+    if send_data.len() > 1 {
+      socket.set_ttl(0);
+      socket.write_all(&fake::get_fake_packet(send_data[0].clone()));
+
+      socket.set_ttl(1);
+      socket.write_all(&send_data[0]);
+      socket.set_ttl(100);
+
+      return send_data[1].clone();
+    }
+
+    return data.to_vec();
+  } else {
+    return data.to_vec();
+  }
 }
 
 fn socks5_proxy(proxy_client: &mut TcpStream) {
@@ -61,6 +107,8 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
       return;
     }
   };
+
+  client.set_nodelay(true);
 
   let mut buffer = [0 as u8; 200];
 
@@ -115,6 +163,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
 
         match server_socket {
           Ok(mut socket) => {
+            socket.set_nodelay(true);
             println!("Connected to socket: {:?}", socket);
 
             let mut socket1: TcpStream = socket.try_clone().unwrap();
