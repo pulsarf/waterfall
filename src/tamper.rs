@@ -43,7 +43,7 @@ mod utils {
         continue;
       }
 
-      if source[iter + 3] - source[iter + 5] != 2 {
+      if ((source[iter + 3] as i8) - (source[iter + 5] as i8)).abs() != 2 {
         continue;
       }
 
@@ -51,7 +51,7 @@ mod utils {
       println!("{:?}", hostname_size);
       // Save the SNI and return from loop
 
-      for jter in iter..(iter + hostname_size) {
+      for jter in (iter + 6)..(6 + iter + hostname_size) {
         if jter > source.len() {
           break;
         }
@@ -110,8 +110,16 @@ mod tests {
   #[test]
 
   fn test_sni_parser() {
-    let packet: Vec<u8> = vec![0, 0, 0, 12, 0, 10, 103, 111, 111, 103, 108, 101, 46, 99, 111, 109, 0, 0];
+    let mut packet: Vec<u8> = vec![0, 0, 0];
+    let sni: String = String::from("discord.com");
+    let mut test_sni: Vec<u8> = sni.clone().into_bytes().to_vec();
 
-    assert_eq!(utils::parse_sni(packet), "google.com".to_owned());
+    packet.append(&mut vec![0, 2 + test_sni.len() as u8, 0]);
+    packet.append(&mut vec![test_sni.len() as u8]);
+    packet.append(&mut test_sni);
+
+    println!("{:?}", packet);
+
+    assert_eq!(utils::parse_sni(packet), sni);
   }
 }
