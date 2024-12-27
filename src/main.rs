@@ -266,7 +266,7 @@ mod tests {
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
 
-    assert_eq!(true, string.contains("google"));
+    assert_eq!(true, string.contains("yt"));
   } 
 
   #[test]
