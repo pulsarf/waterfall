@@ -4,6 +4,7 @@ use crate::features::split::split;
 use crate::features::disorder::disorder;
 use crate::features::fake::fake;
 use crate::features::oob::oob;
+use crate::features::disoob::disoob;
 
 use std::net::Shutdown;
 use std::{
@@ -46,7 +47,8 @@ struct Config {
   split: bool,
   disorder: bool,
   fake: bool,
-  oob: bool
+  oob: bool,
+  disoob: bool
 }
 
 fn write_oob(mut socket: &TcpStream, oob_char: u8) {
@@ -86,7 +88,8 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     split: false,
     disorder: true,
     fake: false,
-    oob: false
+    oob: false,
+    disoob: false
   };
 
   if config.split {
@@ -105,7 +108,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     let send_data: Vec<Vec<u8>> = disorder::get_split_packet(data);
 
     if send_data.len() > 1 {
-      socket.set_ttl(2);
+      socket.set_ttl(3);
       socket.write_all(&send_data[0]);
       socket.set_ttl(100);
 
@@ -133,6 +136,20 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     
     if send_data.len() > 1 {
       socket.write_all(&send_data[0]);
+      write_oob(&socket, 213);
+
+      return send_data[1].clone();
+    }
+
+    return data.to_vec();
+  } else if config.disoob {
+    let send_data: Vec<Vec<u8>> = disoob::get_split_packet(data);
+    
+    if send_data.len() > 1 {
+      socket.set_ttl(3);
+      socket.write_all(&send_data[0]);
+      socket.set_ttl(100);
+
       write_oob(&socket, 213);
 
       return send_data[1].clone();
