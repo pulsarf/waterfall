@@ -50,22 +50,43 @@ struct Config {
 }
 
 fn write_oob(mut socket: &TcpStream, oob_char: u8) {
-  use libc::{c_int, send, MSG_OOB};
-  use std::os::unix::io::{AsRawFd, RawFd};
+  if cfg!(unix) {
+    #[cfg(target_os = "linux")]
+    use libc::{c_int, send, MSG_OOB};
+    #[cfg(target_os = "linux")]
+    use std::os::unix::io::{AsRawFd, RawFd};
 
-  let fd: RawFd = socket.as_raw_fd();
+    #[cfg(target_os = "linux")]
+    let fd = socket.as_raw_fd();
 
-  unsafe {
-    send(fd, (&[oob_char]).as_ptr() as *const _, 1, MSG_OOB);
+    unsafe {
+      #[cfg(target_os = "linux")]
+      send(fd, (&[oob_char]).as_ptr() as *const _, 1, MSG_OOB);
+    }
+  } else if cfg!(windows) {
+    #[cfg(target_os = "windows")]
+    use winapi::um::winsock2::{send, MSG_OOB};
+    #[cfg(target_os = "windows")]
+    use std::os::windows::io::{AsRawSocket, RawSocket};
+
+    #[cfg(target_os = "windows")]
+    let rs: RawSocket = socket.as_raw_socket();
+
+    unsafe {
+      #[cfg(target_os = "windows")]
+      send(rs.try_into().unwrap(), (&[oob_char]).as_ptr() as *const _, 1, MSG_OOB);
+    }
+  } else {
+    panic!("Unsupported OS type! Cannot use Out-Of-Band/Disordered Out-Of-Band");
   }
 }
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let config: Config = Config {
     split: false,
-    disorder: false,
+    disorder: true,
     fake: false,
-    oob: true
+    oob: false
   };
 
   if config.split {
@@ -254,6 +275,24 @@ fn main() {
   }
 }
 
+fn timeout_test() {
+  use std::time::{SystemTime, Duration};
+
+  let now: SystemTime = SystemTime::now();
+  let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
+
+  for stream in listener.incoming() {
+    if now.elapsed().unwrap() > Duration::new(5, 0) {
+      panic!();
+    }
+
+    match stream {
+      Ok(mut client) => socks5_proxy(&mut client),
+      Err(error) => println!("Socks5 proxy encountered an error: {}", error)
+    };
+  }
+}
+
 
 #[cfg(test)]
 
@@ -263,7 +302,7 @@ mod tests {
   #[test]
 
   fn can_send_requests_google() {
-    thread::spawn(main);
+    thread::spawn(timeout_test);
 
     use std::process::{Output, Command};
     
@@ -274,30 +313,30 @@ mod tests {
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
 
-    assert_eq!(true, string.contains("google"));
+    assert_eq!(true, string.contains("html"));
   } 
 
   #[test]
 
   fn can_send_requests_youtube() {
-    thread::spawn(main);
+    thread::spawn(timeout_test);
 
     use std::process::{Output, Command};
     
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com");
+    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com/");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
 
-    assert_eq!(true, string.contains("yt"));
+    assert_eq!(true, string.contains("html"));
   } 
 
   #[test]
 
   fn can_send_requests_discord() {
-    thread::spawn(main);
+    thread::spawn(timeout_test);
 
     use std::process::{Output, Command};
     
@@ -308,6 +347,6 @@ mod tests {
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
 
-    assert_eq!(true, string.contains("discord"));
+    assert_eq!(true, string.contains("html"));
   } 
 }
