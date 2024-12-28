@@ -3,6 +3,7 @@ mod features;
 use crate::features::split::split;
 use crate::features::disorder::disorder;
 use crate::features::fake::fake;
+use crate::features::oob::oob;
 
 use std::net::Shutdown;
 use std::{
@@ -44,14 +45,27 @@ impl IpParser {
 struct Config {
   split: bool,
   disorder: bool,
-  fake: bool
+  fake: bool,
+  oob: bool
+}
+
+fn write_oob(mut socket: &TcpStream, oob_char: u8) {
+  use libc::{c_int, send, MSG_OOB};
+  use std::os::unix::io::{AsRawFd, RawFd};
+
+  let fd: RawFd = socket.as_raw_fd();
+
+  unsafe {
+    send(fd, (&[oob_char]).as_ptr() as *const _, 1, MSG_OOB);
+  }
 }
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let config: Config = Config {
     split: false,
-    disorder: true,
-    fake: false
+    disorder: false,
+    fake: false,
+    oob: true
   };
 
   if config.split {
@@ -70,7 +84,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     let send_data: Vec<Vec<u8>> = disorder::get_split_packet(data);
 
     if send_data.len() > 1 {
-      socket.set_ttl(1);
+      socket.set_ttl(2);
       socket.write_all(&send_data[0]);
       socket.set_ttl(100);
 
@@ -82,12 +96,23 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     let send_data: Vec<Vec<u8>> = fake::get_split_packet(data);
 
     if send_data.len() > 1 {
-      socket.set_ttl(0);
+      socket.set_ttl(2);
       socket.write_all(&fake::get_fake_packet(send_data[0].clone()));
 
-      socket.set_ttl(1);
+      socket.set_ttl(3);
       socket.write_all(&send_data[0]);
       socket.set_ttl(100);
+
+      return send_data[1].clone();
+    }
+
+    return data.to_vec();
+  } else if config.oob {
+    let send_data: Vec<Vec<u8>> = oob::get_split_packet(data);
+    
+    if send_data.len() > 1 {
+      socket.write_all(&send_data[0]);
+      write_oob(&socket, 213);
 
       return send_data[1].clone();
     }
