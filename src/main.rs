@@ -1,10 +1,12 @@
-mod features;
+mod desync;
+mod parsers;
 
-use crate::features::split::split;
-use crate::features::disorder::disorder;
-use crate::features::fake::fake;
-use crate::features::oob::oob;
-use crate::features::disoob::disoob;
+use crate::desync::split::split;
+use crate::desync::disorder::disorder;
+use crate::desync::fake::fake;
+use crate::desync::oob::oob;
+use crate::desync::disoob::disoob;
+use crate::parsers::parsers::IpParser;
 
 use std::net::Shutdown;
 use std::{
@@ -12,36 +14,6 @@ use std::{
   net::{TcpStream, TcpListener},
   thread
 };
-
-#[derive(Debug, Clone)]
-struct IpParser {
-  host_raw: Vec<u8>,
-  port: u16,
-  dest_addr_type: u8
-}
-
-impl IpParser {
-  fn parse(buffer: Vec<u8>) -> IpParser {
-    let dest_addr_type: u8 = buffer[1];
-
-    return match dest_addr_type {
-      1 => {
-        IpParser {
-          dest_addr_type,
-          host_raw: vec![buffer[4], buffer[5], buffer[6], buffer[7]],
-          port: 443u16
-        }
-      },
-      _other => {
-        IpParser {
-          dest_addr_type,
-          host_raw: vec![0, 0, 0, 0],
-          port: 443u16
-        }
-      }
-    }
-  }
-}
 
 struct Config {
   split: bool,
