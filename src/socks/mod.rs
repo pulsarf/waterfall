@@ -65,9 +65,14 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
             SocketAddr::from(SocketAddrV4::new(sl.into(), parsed_data.port))
           },
           6 => {
-            let sl = raw_host.as_slice();
+            let mut sl: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            raw_host.resize(16, 0);
 
-            SocketAddr::from(SocketAddrV6::new([sl[0], sl[1], sl[2], sl[3], sl[4], sl[5], sl[6], sl[7], sl[8], sl[9], sl[10], sl[11], sl[12], sl[13], sl[14], sl[15]].into(), parsed_data.port, 0, 0))
+            for iter in 0..16 {
+              sl[iter] = raw_host[iter];
+            }
+
+            SocketAddr::from(SocketAddrV6::new(sl.into(), parsed_data.port, 0, 0))
           },
           _ => SocketAddr::from(SocketAddrV4::new([0, 0, 0, 0].into(), parsed_data.port))
         });
