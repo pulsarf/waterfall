@@ -4,7 +4,7 @@ use crate::IpParser;
 
 use std::{
   io::{Read, Write},
-  net::{TcpStream, SocketAddr, SocketAddrV4, SocketAddrV6},
+  net::{TcpStream, SocketAddr},
   thread
 };
 
@@ -12,8 +12,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
   let mut client: TcpStream = match proxy_client.try_clone() {
     Ok(socket) => socket,
     Err(_error) => {
-      println!("Connection dropped: failed to clone socket. {:?}", proxy_client);
-
       return;
     }
   };
@@ -41,8 +39,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
         let parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
         let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
 
-        println!("{:?}", parsed_data);
-
         packet.extend_from_slice(&parsed_data.host_raw.as_slice());
         packet.extend_from_slice(&parsed_data.port.to_be_bytes());
 
@@ -62,7 +58,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
               sl[iter] = raw_host[iter];
             }
 
-            SocketAddr::from(SocketAddrV4::new(sl.into(), parsed_data.port))
+            SocketAddr::new(sl.into(), parsed_data.port)
           },
           6 => {
             let mut sl: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -72,9 +68,9 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
               sl[iter] = raw_host[iter];
             }
 
-            SocketAddr::from(SocketAddrV6::new(sl.into(), parsed_data.port, 0, 0))
+            SocketAddr::new(sl.into(), parsed_data.port)
           },
-          _ => SocketAddr::from(SocketAddrV4::new([0, 0, 0, 0].into(), parsed_data.port))
+          _ => SocketAddr::new([0, 0, 0, 0].into(), parsed_data.port)
         });
 
         match server_socket {
@@ -125,7 +121,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
             return;
           },
           Err(_error) => {
-            println!("Critical error happened! Couldn't restore from normal state, closing sockets.");
+            println!("Critical error happened! Couldn't restore from normal state, closing sockets: {:?}", _error);
 
             let _ = client.shutdown(Shutdown::Both);
             return;
