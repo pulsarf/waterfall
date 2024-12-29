@@ -3,6 +3,8 @@ mod parsers;
 mod net;
 mod core;
 mod socks;
+mod duplicate;
+mod drop;
 
 use crate::desync::split::split;
 use crate::desync::disorder::disorder;
@@ -28,7 +30,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     args.drain(0..args.len());
 
     args.push("--disorder".to_string());
-    args.push("1+s".to_string());
+    args.push("3+s".to_string());
   }
 
   let mut current_data = data.to_vec();
@@ -58,9 +60,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          let _ = socket.set_ttl(3);
-          let _ = socket.write_all(&send_data[0]).ok();
-          let _ = socket.set_ttl(100);
+          duplicate::send(&socket, send_data[0].clone());
 
           current_data = send_data[1].clone();
         }
@@ -69,12 +69,8 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          let _ = socket.set_ttl(2);
-          let _ = socket.write_all(&fake::get_fake_packet(send_data[0].clone())).ok();
-
-          let _ = socket.set_ttl(3);
-          let _ = socket.write_all(&send_data[0]).ok();
-          let _ = socket.set_ttl(100);
+          drop::send(&socket, fake::get_fake_packet(send_data[0].clone()));
+          duplicate::send(&socket, send_data[0].clone());
 
           current_data = send_data[1].clone();
         }
@@ -93,10 +89,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data);
     
         if send_data.len() > 1 {
-          let _ = socket.set_ttl(3);
-          let _ = socket.write_all(&send_data[0]).ok();
-          let _ = socket.set_ttl(100);
-
+          duplicate::send(&socket, send_data[0].clone());
           net::write_oob(&socket, 213);
 
           current_data = send_data[1].clone();
