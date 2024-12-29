@@ -1,6 +1,6 @@
 
 pub mod parsers {
-  use std::net::{SocketAddr, ToSocketAddrs, IpAddr};
+  use std::net::{ToSocketAddrs, IpAddr};
 
   #[derive(Debug, Clone)]
   pub struct IpParser {
@@ -11,14 +11,14 @@ pub mod parsers {
 
   impl IpParser {
     pub fn parse(buffer: Vec<u8>) -> IpParser {
-      let dest_addr_type: u8 = buffer[1];
+      let dest_addr_type: u8 = buffer[3];
 
       match dest_addr_type {
         1 => {
           IpParser {
             dest_addr_type,
             host_raw: vec![buffer[4], buffer[5], buffer[6], buffer[7]],
-            port: 443
+            port: u16::from_be_bytes([buffer[8], buffer[9]])
           }
         },
         3 => {
@@ -36,18 +36,11 @@ pub mod parsers {
             port: 443
           }
         },
-        4 => {
-          IpParser {
-            dest_addr_type,
-            host_raw: buffer[4..20].to_vec(),
-            port: 443
-          }
-        },
         _ => {
           IpParser {
             dest_addr_type,
-            host_raw: vec![0, 0, 0, 0],
-            port: 443u16
+            host_raw: buffer[4..20].to_vec(),
+            port: u16::from_be_bytes([buffer[20], buffer[21]])
           }
         }
       }

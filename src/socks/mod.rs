@@ -4,7 +4,7 @@ use crate::IpParser;
 
 use std::{
   io::{Read, Write},
-  net::TcpStream,
+  net::{TcpStream, SocketAddr, SocketAddrV4, SocketAddrV6},
   thread
 };
 
@@ -26,50 +26,51 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
 
   while match client.read(&mut buffer) {
     Ok(_s) => {
+      if _s <= 0 {
+        return;
+      }
+
       if !state_auth {
-        // Client authentification packet. Reply with [5, 1] which stands for
+        // Client authentification packet. Reply with [5, 0] which stands for
         // no-authentification 
 
-        match client.write(&[0x05, 0x00]) {
-          Ok(_size) => println!("Authentification complete!"),
-          Err(_error) => return
-        }
+        let _ = client.write(&[5, 0]);
 
         state_auth = true;
       } else {
-        let mut parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
-
-        println!("Parsed IP data: {:?}", parsed_data);
-
-        // Accept authentification and return connected IP
-        // By default, if connected IP is not equal to the one
-        // Client have chosen, the connection is dropped
-        // So we can't just put [0, 0, 0, 0]
-
-        // Server accept structure:
-        // 0x05, 0, 0, dest_addr_type as u8, ..parsed_ip, port.as_bytes()
-
+        let parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
         let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
+
+        println!("{:?}", parsed_data);
 
         packet.extend_from_slice(&parsed_data.host_raw.as_slice());
         packet.extend_from_slice(&parsed_data.port.to_be_bytes());
 
-        match client.write(&packet) {
-          Ok(_size) => println!("[Auth] Accepted! {:?}", buffer),
-          Err(_error) => return
-        }
+        let _ = client.write(&packet);
 
         // Create a socket connection and pipe to messages receiver 
         // Which is wrapped in other function
 
-        let server_socket = TcpStream::connect(
-          parsed_data.host_raw.
-          iter_mut()
-          .map(|fag| fag.to_string())
-          .collect::<Vec<_>>()
-          .join(".") + ":" + &parsed_data.port.to_string());
+        let mut raw_host = parsed_data.host_raw;
 
-        println!("Socket instanced");
+        let server_socket = TcpStream::connect(match raw_host.len() {
+          4 => {
+            let mut sl: [u8; 4] = [0, 0, 0, 0];
+            raw_host.resize(4, 0);
+
+            for iter in 0..4 {
+              sl[iter] = raw_host[iter];
+            }
+
+            SocketAddr::from(SocketAddrV4::new(sl.into(), parsed_data.port))
+          },
+          6 => {
+            let sl = raw_host.as_slice();
+
+            SocketAddr::from(SocketAddrV6::new([sl[0], sl[1], sl[2], sl[3], sl[4], sl[5], sl[6], sl[7], sl[8], sl[9], sl[10], sl[11], sl[12], sl[13], sl[14], sl[15]].into(), parsed_data.port, 0, 0))
+          },
+          _ => SocketAddr::from(SocketAddrV4::new([0, 0, 0, 0].into(), parsed_data.port))
+        });
 
         match server_socket {
           Ok(mut socket) => {
@@ -120,6 +121,9 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
           },
           Err(_error) => {
             println!("Critical error happened! Couldn't restore from normal state, closing sockets.");
+
+            let _ = client.shutdown(Shutdown::Both);
+            return;
           }
         }
       }

@@ -136,7 +136,7 @@ mod tests {
   fn can_send_requests_google() {
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
+    sender.arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
@@ -149,10 +149,12 @@ mod tests {
   fn can_send_requests_youtube() {
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com");
+    sender.arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
+
+    println!("{}", string);
 
     assert_eq!(true, string.contains("html"));
   } 
@@ -162,7 +164,7 @@ mod tests {
   fn can_send_requests_discord() {
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://discord.com");
+    sender.arg("--socks5").arg("127.0.0.1:7878").arg("https://discord.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
