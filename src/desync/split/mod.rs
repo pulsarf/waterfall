@@ -2,7 +2,7 @@ pub mod utils;
 
 pub mod split {
   pub fn get_split_packet(packet_buffer: &[u8]) -> Vec<Vec<u8>> {
-    use crate::desync::disorder::utils::utils;
+    use crate::desync::split::utils::utils;
 
     let (sni_start, sni_end) = utils::parse_sni_index(packet_buffer.to_vec());
     let middle: u64 = ((sni_start + sni_end) / 2) as u64;

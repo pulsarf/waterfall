@@ -1,5 +1,6 @@
 mod desync;
 mod parsers;
+mod net;
 
 use crate::desync::split::split;
 use crate::desync::disorder::disorder;
@@ -78,38 +79,6 @@ impl Strategy {
   }
 }
 
-fn write_oob(mut socket: &TcpStream, oob_char: u8) {
-  if cfg!(unix) {
-    #[cfg(target_os = "linux")]
-    use libc::{c_int, send, MSG_OOB};
-    #[cfg(target_os = "linux")]
-    use std::os::unix::io::{AsRawFd, RawFd};
-
-    #[cfg(target_os = "linux")]
-    let fd = socket.as_raw_fd();
-
-    unsafe {
-      #[cfg(target_os = "linux")]
-      send(fd, (&[oob_char]).as_ptr() as *const _, 1, MSG_OOB);
-    }
-  } else if cfg!(windows) {
-    #[cfg(target_os = "windows")]
-    use winapi::um::winsock2::{send, MSG_OOB};
-    #[cfg(target_os = "windows")]
-    use std::os::windows::io::{AsRawSocket, RawSocket};
-
-    #[cfg(target_os = "windows")]
-    let rs: RawSocket = socket.as_raw_socket();
-
-    unsafe {
-      #[cfg(target_os = "windows")]
-      send(rs.try_into().unwrap(), (&[oob_char]).as_ptr() as *const _, 1, MSG_OOB);
-    }
-  } else {
-    panic!("Unsupported OS type! Cannot use Out-Of-Band/Disordered Out-Of-Band");
-  }
-}
-
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let mut args: Vec<String> = env::args().collect();
   args.drain(0..1);
@@ -151,9 +120,9 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          socket.set_ttl(3);
-          socket.write_all(&send_data[0]).ok();
-          socket.set_ttl(100);
+          let _ = socket.set_ttl(3);
+          let _ = socket.write_all(&send_data[0]).ok();
+          let _ = socket.set_ttl(100);
 
           current_data = send_data[1].clone();
         }
@@ -162,12 +131,12 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          socket.set_ttl(2);
-          socket.write_all(&fake::get_fake_packet(send_data[0].clone())).ok();
+          let _ = socket.set_ttl(2);
+          let _ = socket.write_all(&fake::get_fake_packet(send_data[0].clone())).ok();
 
-          socket.set_ttl(3);
-          socket.write_all(&send_data[0]).ok();
-          socket.set_ttl(100);
+          let _ = socket.set_ttl(3);
+          let _ = socket.write_all(&send_data[0]).ok();
+          let _ = socket.set_ttl(100);
 
           current_data = send_data[1].clone();
         }
@@ -176,8 +145,8 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          socket.write_all(&send_data[0]).ok();
-          write_oob(&socket, 213);
+          let _ = socket.write_all(&send_data[0]).ok();
+          net::write_oob(&socket, 213);
 
           current_data = send_data[1].clone();
         }
@@ -186,11 +155,11 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data);
     
         if send_data.len() > 1 {
-          socket.set_ttl(3);
-          socket.write_all(&send_data[0]).ok();
-          socket.set_ttl(100);
+          let _ = socket.set_ttl(3);
+          let _ = socket.write_all(&send_data[0]).ok();
+          let _ = socket.set_ttl(100);
 
-          write_oob(&socket, 213);
+          net::write_oob(&socket, 213);
 
           current_data = send_data[1].clone();
         }
@@ -211,7 +180,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
     }
   };
 
-  client.set_nodelay(true);
+  let _ = client.set_nodelay(true);
 
   let mut buffer = [0 as u8; 200];
 
@@ -266,7 +235,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
 
         match server_socket {
           Ok(mut socket) => {
-            socket.set_nodelay(true);
+            let _ = socket.set_nodelay(true);
             println!("Connected to socket: {:?}", socket);
 
             let mut socket1: TcpStream = socket.try_clone().unwrap();
@@ -281,7 +250,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
                     if size > 0 {
                       let _ = client.write_all(&msg_buffer[..size]);
                     } else {
-                      client.shutdown(Shutdown::Both);
+                      let _ = client.shutdown(Shutdown::Both);
                     }
                   }, Err(_error) => { }
                 }
@@ -297,7 +266,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
                     if size > 0 {
                       let _ = socket1.write_all(&client_hook(socket1.try_clone().unwrap(), &msg_buffer[..size]));
                     } else {
-                      socket1.shutdown(Shutdown::Both);
+                      let _ = socket1.shutdown(Shutdown::Both);
                     }
 
                   }, Err(_error) => continue
