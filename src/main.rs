@@ -1,6 +1,7 @@
 mod desync;
 mod parsers;
 mod net;
+mod core;
 
 use crate::desync::split::split;
 use crate::desync::disorder::disorder;
@@ -9,6 +10,9 @@ use crate::desync::oob::oob;
 use crate::desync::disoob::disoob;
 use crate::parsers::parsers::IpParser;
 
+use core::Strategies;
+use core::Strategy;
+
 use std::env;
 use std::net::Shutdown;
 use std::{
@@ -16,68 +20,6 @@ use std::{
   net::{TcpStream, TcpListener},
   thread
 };
-
-#[derive(Debug)]
-enum Strategies {
-  NONE,
-  SPLIT,
-  DISORDER,
-  FAKE,
-  OOB,
-  DISOOB
-}
-
-#[derive(Debug)]
-struct Strategy {
-  method: Strategies,
-  base_index: usize,
-  add_sni: bool,
-  add_host: bool
-}
-
-impl Strategy {
-  pub fn from(first: String, second: String) -> Strategy {
-    let mut strategy: Strategy = Strategy {
-      method: Strategies::NONE,
-      base_index: 0,
-      add_sni: false,
-      add_host: false
-    };
-
-    if second.contains("s") {
-      strategy.add_sni = true;
-    }
-
-    if second.contains("h") {
-      strategy.add_host = true;
-    }
-
-    if second.contains("+") {
-      let parts: Vec<String> = second
-        .split("+")
-        .map(|str| String::from(str))
-        .collect();
-      
-      match parts[0].parse::<u64>() {
-        Ok(res) => {
-          strategy.base_index = res as usize;
-        },
-        Err(_) => { }
-      };
-    };
-
-    strategy.method = match first.as_str() {
-      "--split" => Strategies::SPLIT,
-      "--disorder" => Strategies::DISORDER,
-      "--fake" => Strategies::FAKE,
-      "--oob" => Strategies::OOB,
-      "--disoob" => Strategies::DISOOB,
-      _ => Strategies::NONE
-    };
-
-    strategy
-  }
-}
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let mut args: Vec<String> = env::args().collect();
@@ -170,7 +112,9 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   current_data
 }
 
-fn socks5_proxy(proxy_client: &mut TcpStream) {
+fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static) {
+  use std::sync::Arc;
+
   let mut client: TcpStream = match proxy_client.try_clone() {
     Ok(socket) => socket,
     Err(_error) => {
@@ -241,6 +185,8 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
             let mut socket1: TcpStream = socket.try_clone().unwrap();
             let mut client1: TcpStream = client.try_clone().unwrap();
 
+            let func = Arc::new(client_hook);
+
             thread::spawn(move || {
               let msg_buffer: &mut [u8] = &mut [0u8; 1024];
 
@@ -261,10 +207,12 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
               let msg_buffer: &mut [u8] = &mut [0u8; 1024];
 
               loop {
+                let client_hook_fn = Arc::clone(&func);
+
                 match client1.read(msg_buffer) {
                   Ok(size) => {
                     if size > 0 {
-                      let _ = socket1.write_all(&client_hook(socket1.try_clone().unwrap(), &msg_buffer[..size]));
+                      let _ = socket1.write_all(&client_hook_fn(socket1.try_clone().unwrap(), &msg_buffer[..size]));
                     } else {
                       let _ = socket1.shutdown(Shutdown::Both);
                     }
@@ -295,7 +243,7 @@ fn main() {
 
   for stream in listener.incoming() {
     match stream {
-      Ok(mut client) => socks5_proxy(&mut client),
+      Ok(mut client) => socks5_proxy(&mut client, client_hook),
       Err(error) => println!("Socks5 proxy encountered an error: {}", error)
     };
   }
@@ -313,7 +261,7 @@ fn timeout_test() {
     }
 
     match stream {
-      Ok(mut client) => socks5_proxy(&mut client),
+      Ok(mut client) => socks5_proxy(&mut client, client_hook),
       Err(error) => println!("Socks5 proxy encountered an error: {}", error)
     };
   }
