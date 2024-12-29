@@ -8,6 +8,7 @@ use crate::desync::oob::oob;
 use crate::desync::disoob::disoob;
 use crate::parsers::parsers::IpParser;
 
+use clap::{Parser, ArgAction};
 use std::net::Shutdown;
 use std::{
   io::{Read, Write},
@@ -15,12 +16,28 @@ use std::{
   thread
 };
 
+#[derive(Parser, Debug, Clone)]
+#[command(version, about, long_about = None)]
 struct Config {
-  split: bool,
-  disorder: bool,
-  fake: bool,
-  oob: bool,
-  disoob: bool
+    /// Enable stream segmentation
+    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
+    split: bool,
+
+    /// Enable segments sequence inversion
+    #[arg(short = 'D', long, action=ArgAction::SetTrue, default_value_t = false)]
+    disorder: bool,
+
+    /// Enable fake packets with segments sequence inversion
+    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
+    fake: bool,
+
+    /// Enable segmentation with out-of-band data between them
+    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
+    oob: bool,
+
+    /// Enable segmentation with our-of-band data between then and reversed order of those segments
+    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
+    disoob: bool,
 }
 
 fn write_oob(mut socket: &TcpStream, oob_char: u8) {
@@ -55,15 +72,7 @@ fn write_oob(mut socket: &TcpStream, oob_char: u8) {
   }
 }
 
-fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
-  let config: Config = Config {
-    split: false,
-    disorder: true,
-    fake: false,
-    oob: false,
-    disoob: false
-  };
-
+fn client_hook(config: Config, mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   if config.split {
     let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
 
@@ -133,7 +142,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   }
 }
 
-fn socks5_proxy(proxy_client: &mut TcpStream) {
+fn socks5_proxy(proxy_client: &mut TcpStream, config: Config) {
   let mut client: TcpStream = match proxy_client.try_clone() {
     Ok(socket) => socket,
     Err(_error) => {
@@ -203,6 +212,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
 
             let mut socket1: TcpStream = socket.try_clone().unwrap();
             let mut client1: TcpStream = client.try_clone().unwrap();
+            let config1: Config = config.clone();
 
             thread::spawn(move || {
               let msg_buffer: &mut [u8] = &mut [0u8; 1024];
@@ -227,7 +237,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
                 match client1.read(msg_buffer) {
                   Ok(size) => {
                     if size > 0 {
-                      let _ = socket1.write_all(&client_hook(socket1.try_clone().unwrap(), &msg_buffer[..size]));
+                      let _ = socket1.write_all(&client_hook(config1.clone(), socket1.try_clone().unwrap(), &msg_buffer[..size]));
                     } else {
                       socket1.shutdown(Shutdown::Both);
                     }
@@ -255,10 +265,11 @@ fn socks5_proxy(proxy_client: &mut TcpStream) {
 
 fn main() {
   let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
+  let config: Config = Config::parse();
 
   for stream in listener.incoming() {
     match stream {
-      Ok(mut client) => socks5_proxy(&mut client),
+      Ok(mut client) => socks5_proxy(&mut client, config.clone()),
       Err(error) => println!("Socks5 proxy encountered an error: {}", error)
     };
   }
@@ -269,6 +280,13 @@ fn timeout_test() {
 
   let now: SystemTime = SystemTime::now();
   let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
+  let config: Config = Config {
+    split: false,
+    disorder: true,
+    fake: false,
+    oob: false,
+    disoob: false
+  };
 
   for stream in listener.incoming() {
     if now.elapsed().unwrap() > Duration::new(5, 0) {
@@ -276,7 +294,7 @@ fn timeout_test() {
     }
 
     match stream {
-      Ok(mut client) => socks5_proxy(&mut client),
+      Ok(mut client) => socks5_proxy(&mut client, config.clone()),
       Err(error) => println!("Socks5 proxy encountered an error: {}", error)
     };
   }
