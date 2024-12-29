@@ -29,9 +29,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
 
     args.push("--disorder".to_string());
     args.push("1+s".to_string());
-
-    args.push("--split".to_string());
-    args.push("5+s".to_string());
   }
 
   let mut current_data = data.to_vec();
@@ -122,40 +119,24 @@ fn main() {
   }
 }
 
-fn timeout_test() {
-  use std::time::{SystemTime, Duration};
-
-  let now: SystemTime = SystemTime::now();
-  let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
-
-  for stream in listener.incoming() {
-    if now.elapsed().unwrap() > Duration::new(5, 0) {
-      panic!();
-    }
-
-    match stream {
-      Ok(mut client) => socks::socks5_proxy(&mut client, client_hook),
-      Err(error) => println!("Socks5 proxy encountered an error: {}", error)
-    };
-  }
-}
-
-
 #[cfg(test)]
 
 mod tests {
+  use std::process::{Output, Command};
   use super::*;
 
   #[test]
 
-  fn can_send_requests_google() {
-    thread::spawn(timeout_test);
+  fn start_server() {
+    thread::spawn(main);
+  }
 
-    use std::process::{Output, Command};
-    
+  #[test]
+
+  fn can_send_requests_google() {
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
+    sender.arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
@@ -166,13 +147,9 @@ mod tests {
   #[test]
 
   fn can_send_requests_youtube() {
-    thread::spawn(timeout_test);
-
-    use std::process::{Output, Command};
-    
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com/");
+    sender.arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
@@ -183,13 +160,9 @@ mod tests {
   #[test]
 
   fn can_send_requests_discord() {
-    thread::spawn(timeout_test);
-
-    use std::process::{Output, Command};
-    
     let mut sender: Command = Command::new("curl");
 
-    sender.arg("--verbose").arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://discord.com/app");
+    sender.arg("--ipv4").arg("--socks5").arg("127.0.0.1:7878").arg("https://discord.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
