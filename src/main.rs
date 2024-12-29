@@ -8,7 +8,7 @@ use crate::desync::oob::oob;
 use crate::desync::disoob::disoob;
 use crate::parsers::parsers::IpParser;
 
-use clap::{Parser, ArgAction};
+use std::env;
 use std::net::Shutdown;
 use std::{
   io::{Read, Write},
@@ -16,28 +16,55 @@ use std::{
   thread
 };
 
-#[derive(Parser, Debug, Clone)]
-#[command(version, about, long_about = None)]
-struct Config {
-    /// Enable stream segmentation
-    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
-    split: bool,
+enum Strategies {
+  NONE,
+  SPLIT,
+  DISORDER,
+  FAKE,
+  OOB,
+  DISOOB
+}
 
-    /// Enable segments sequence inversion
-    #[arg(short = 'D', long, action=ArgAction::SetTrue, default_value_t = false)]
-    disorder: bool,
+struct Strategy {
+  method: Strategies,
+  base_index: usize,
+  add_sni: bool,
+  add_host: bool
+}
 
-    /// Enable fake packets with segments sequence inversion
-    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
-    fake: bool,
+impl Strategy {
+  pub fn from(first: String, second: String) -> Strategy {
+    let mut strategy: Strategy = Strategy {
+      method: Strategies::NONE,
+      base_index: 0,
+      add_sni: false,
+      add_host: false
+    };
 
-    /// Enable segmentation with out-of-band data between them
-    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
-    oob: bool,
+    if second.contains("s") {
+      strategy.add_sni = true;
+    }
 
-    /// Enable segmentation with our-of-band data between then and reversed order of those segments
-    #[arg(short, long, action=ArgAction::SetTrue, default_value_t = false)]
-    disoob: bool,
+    if second.contains("h") {
+      strategy.add_host = true;
+    }
+
+    if second.contains("+") {
+      let parts: Vec<String> = second
+        .split("+")
+        .map(|str| String::from(str))
+        .collect();
+      
+      match parts[0].parse::<u64>() {
+        Ok(res) => {
+          strategy.base_index = res as usize;
+        },
+        Err(_) => { }
+      };
+    };
+
+    strategy
+  }
 }
 
 fn write_oob(mut socket: &TcpStream, oob_char: u8) {
@@ -72,7 +99,75 @@ fn write_oob(mut socket: &TcpStream, oob_char: u8) {
   }
 }
 
-fn client_hook(config: Config, mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
+fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
+  let args: Vec<String> = env::args().collect();
+
+  for index in (0..args.len()).step_by(2) {
+    let first: String = args[index as usize];
+    let second: String = args[(index + 1) as usize];
+
+    let strategy: Strategy = Strategy::from(first, second);
+
+    match strategy.method {
+      Strategies::NONE => { },
+      Strategies::SPLIT => {
+        let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
+
+        if send_data.len() > 1 {
+          if let Err(_e) = socket.write_all(&send_data[0]) {
+             return data.to_vec();
+          }
+
+          return send_data[1].clone();
+        }
+
+        return data.to_vec();
+      },
+      Strategies::DISORDER => {
+        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(data);
+
+        if send_data.len() > 1 {
+          socket.set_ttl(3);
+          socket.write_all(&send_data[0]);
+          socket.set_ttl(100);
+
+          return send_data[1].clone();
+        }
+
+        return data.to_vec();
+      },
+      Strategies::FAKE => {
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(data);
+
+        if send_data.len() > 1 {
+          socket.set_ttl(2);
+          socket.write_all(&fake::get_fake_packet(send_data[0].clone()));
+
+          socket.set_ttl(3);
+          socket.write_all(&send_data[0]);
+          socket.set_ttl(100);
+
+          return send_data[1].clone();
+        }
+
+        return data.to_vec();
+      },
+      Strategies::OOB => {
+        let send_data: Vec<Vec<u8>> = oob::get_split_packet(data);
+
+        if send_data.len() > 1 {
+          socket.write_all(&send_data[0]);
+          write_oob(&socket, 213);
+
+          return send_data[1].clone();
+        }
+
+        return data.to_vec();
+      }
+    }
+    Strategies::DISOOB => { }
+  }
+/*
   if config.split {
     let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
 
@@ -139,10 +234,12 @@ fn client_hook(config: Config, mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     return data.to_vec();
   } else {
     return data.to_vec();
-  }
+  }*/
+
+  data.to_vec()
 }
 
-fn socks5_proxy(proxy_client: &mut TcpStream, config: Config) {
+fn socks5_proxy(proxy_client: &mut TcpStream) {
   let mut client: TcpStream = match proxy_client.try_clone() {
     Ok(socket) => socket,
     Err(_error) => {
@@ -212,7 +309,6 @@ fn socks5_proxy(proxy_client: &mut TcpStream, config: Config) {
 
             let mut socket1: TcpStream = socket.try_clone().unwrap();
             let mut client1: TcpStream = client.try_clone().unwrap();
-            let config1: Config = config.clone();
 
             thread::spawn(move || {
               let msg_buffer: &mut [u8] = &mut [0u8; 1024];
@@ -237,7 +333,7 @@ fn socks5_proxy(proxy_client: &mut TcpStream, config: Config) {
                 match client1.read(msg_buffer) {
                   Ok(size) => {
                     if size > 0 {
-                      let _ = socket1.write_all(&client_hook(config1.clone(), socket1.try_clone().unwrap(), &msg_buffer[..size]));
+                      let _ = socket1.write_all(&client_hook(socket1.try_clone().unwrap(), &msg_buffer[..size]));
                     } else {
                       socket1.shutdown(Shutdown::Both);
                     }
@@ -265,11 +361,10 @@ fn socks5_proxy(proxy_client: &mut TcpStream, config: Config) {
 
 fn main() {
   let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
-  let config: Config = Config::parse();
 
   for stream in listener.incoming() {
     match stream {
-      Ok(mut client) => socks5_proxy(&mut client, config.clone()),
+      Ok(mut client) => socks5_proxy(&mut client),
       Err(error) => println!("Socks5 proxy encountered an error: {}", error)
     };
   }
@@ -280,13 +375,6 @@ fn timeout_test() {
 
   let now: SystemTime = SystemTime::now();
   let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
-  let config: Config = Config {
-    split: false,
-    disorder: true,
-    fake: false,
-    oob: false,
-    disoob: false
-  };
 
   for stream in listener.incoming() {
     if now.elapsed().unwrap() > Duration::new(5, 0) {
@@ -294,7 +382,7 @@ fn timeout_test() {
     }
 
     match stream {
-      Ok(mut client) => socks5_proxy(&mut client, config.clone()),
+      Ok(mut client) => socks5_proxy(&mut client),
       Err(error) => println!("Socks5 proxy encountered an error: {}", error)
     };
   }
