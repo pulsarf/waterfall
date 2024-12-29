@@ -9,7 +9,7 @@ use std::net::TcpStream;
 use std::io::Write;
 
 pub fn send(mut socket: &TcpStream, packet: Vec<u8>) -> Result<(), std::io::Error> {
-  socket.set_ttl(2)?;
+  socket.set_ttl(8)?;
   socket.write_all(&packet.as_slice())?;
   socket.set_ttl(100)?;
 
