@@ -16,6 +16,7 @@ use std::{
   thread
 };
 
+#[derive(Debug)]
 enum Strategies {
   NONE,
   SPLIT,
@@ -25,6 +26,7 @@ enum Strategies {
   DISOOB
 }
 
+#[derive(Debug)]
 struct Strategy {
   method: Strategies,
   base_index: usize,
@@ -61,6 +63,15 @@ impl Strategy {
         },
         Err(_) => { }
       };
+    };
+
+    strategy.method = match first.as_str() {
+      "--split" => Strategies::SPLIT,
+      "--disorder" => Strategies::DISORDER,
+      "--fake" => Strategies::FAKE,
+      "--oob" => Strategies::OOB,
+      "--disoob" => Strategies::DISOOB,
+      _ => Strategies::NONE
     };
 
     strategy
@@ -100,143 +111,94 @@ fn write_oob(mut socket: &TcpStream, oob_char: u8) {
 }
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
-  let args: Vec<String> = env::args().collect();
+  let mut args: Vec<String> = env::args().collect();
+  args.drain(0..1);
+  
+  if args.len() < 2 {
+    args.drain(0..args.len());
+
+    args.push("--disorder".to_string());
+    args.push("1+s".to_string());
+
+    args.push("--split".to_string());
+    args.push("5+s".to_string());
+  }
+
+  let mut current_data = data.to_vec();
 
   for index in (0..args.len()).step_by(2) {
-    let first: String = args[index as usize];
-    let second: String = args[(index + 1) as usize];
+    let first: String = args[index as usize].clone();
+    let second: String = args[(index + 1) as usize].clone();
 
     let strategy: Strategy = Strategy::from(first, second);
+
+    println!("[Send] Applied method: {:?}", strategy);
 
     match strategy.method {
       Strategies::NONE => { },
       Strategies::SPLIT => {
-        let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
+        let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
           if let Err(_e) = socket.write_all(&send_data[0]) {
-             return data.to_vec();
+             return current_data;
           }
 
-          return send_data[1].clone();
+          current_data = send_data[1].clone();
         }
-
-        return data.to_vec();
       },
       Strategies::DISORDER => {
-        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(data);
+        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
           socket.set_ttl(3);
-          socket.write_all(&send_data[0]);
+          socket.write_all(&send_data[0]).ok();
           socket.set_ttl(100);
 
-          return send_data[1].clone();
+          current_data = send_data[1].clone();
         }
-
-        return data.to_vec();
       },
       Strategies::FAKE => {
-        let send_data: Vec<Vec<u8>> = fake::get_split_packet(data);
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
           socket.set_ttl(2);
-          socket.write_all(&fake::get_fake_packet(send_data[0].clone()));
+          socket.write_all(&fake::get_fake_packet(send_data[0].clone())).ok();
 
           socket.set_ttl(3);
-          socket.write_all(&send_data[0]);
+          socket.write_all(&send_data[0]).ok();
           socket.set_ttl(100);
 
-          return send_data[1].clone();
+          current_data = send_data[1].clone();
         }
-
-        return data.to_vec();
       },
       Strategies::OOB => {
-        let send_data: Vec<Vec<u8>> = oob::get_split_packet(data);
+        let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          socket.write_all(&send_data[0]);
+          socket.write_all(&send_data[0]).ok();
           write_oob(&socket, 213);
 
-          return send_data[1].clone();
+          current_data = send_data[1].clone();
         }
+      },
+      Strategies::DISOOB => { 
+        let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data);
+    
+        if send_data.len() > 1 {
+          socket.set_ttl(3);
+          socket.write_all(&send_data[0]).ok();
+          socket.set_ttl(100);
 
-        return data.to_vec();
+          write_oob(&socket, 213);
+
+          current_data = send_data[1].clone();
+        }
       }
     }
-    Strategies::DISOOB => { }
   }
-/*
-  if config.split {
-    let send_data: Vec<Vec<u8>> = split::get_split_packet(data);
 
-    if send_data.len() > 1 {
-      if let Err(_e) = socket.write_all(&send_data[0]) {
-        return data.to_vec();
-      }
-
-      return send_data[1].clone();
-    }
-
-    return data.to_vec();
-  } else if config.disorder {
-    let send_data: Vec<Vec<u8>> = disorder::get_split_packet(data);
-
-    if send_data.len() > 1 {
-      socket.set_ttl(3);
-      socket.write_all(&send_data[0]);
-      socket.set_ttl(100);
-
-      return send_data[1].clone();
-    }
-
-    return data.to_vec();
-  } else if config.fake {
-    let send_data: Vec<Vec<u8>> = fake::get_split_packet(data);
-
-    if send_data.len() > 1 {
-      socket.set_ttl(2);
-      socket.write_all(&fake::get_fake_packet(send_data[0].clone()));
-
-      socket.set_ttl(3);
-      socket.write_all(&send_data[0]);
-      socket.set_ttl(100);
-
-      return send_data[1].clone();
-    }
-
-    return data.to_vec();
-  } else if config.oob {
-    let send_data: Vec<Vec<u8>> = oob::get_split_packet(data);
-    
-    if send_data.len() > 1 {
-      socket.write_all(&send_data[0]);
-      write_oob(&socket, 213);
-
-      return send_data[1].clone();
-    }
-
-    return data.to_vec();
-  } else if config.disoob {
-    let send_data: Vec<Vec<u8>> = disoob::get_split_packet(data);
-    
-    if send_data.len() > 1 {
-      socket.set_ttl(3);
-      socket.write_all(&send_data[0]);
-      socket.set_ttl(100);
-
-      write_oob(&socket, 213);
-
-      return send_data[1].clone();
-    }
-
-    return data.to_vec();
-  } else {
-    return data.to_vec();
-  }*/
-
-  data.to_vec()
+  current_data
 }
 
 fn socks5_proxy(proxy_client: &mut TcpStream) {
