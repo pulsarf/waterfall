@@ -15,33 +15,20 @@ use crate::parsers::parsers::IpParser;
 
 use core::Strategies;
 use core::Strategy;
+use core::AuxConfig;
 
-use std::env;
 use std::thread;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::io::Write;
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
-  let mut args: Vec<String> = env::args().collect();
-  args.drain(0..1);
-  
-  if args.len() < 2 {
-    args.drain(0..args.len());
-
-    args.push("--disorder".to_string());
-    args.push("3+s".to_string());
-  }
-
   let mut current_data = data.to_vec();
 
-  for index in (0..args.len()).step_by(2) {
-    let first: String = args[index as usize].clone();
-    let second: String = args[(index + 1) as usize].clone();
+  for strategy_raw in core::parse_args().strategies {
+    println!("[Send] Applied method: {:?}", strategy_raw);
 
-    let strategy: Strategy = Strategy::from(first, second);
-
-    println!("[Send] Applied method: {:?}", strategy);
+    let strategy: Strategy = strategy_raw.data;
 
     match strategy.method {
       Strategies::NONE => { },
@@ -80,7 +67,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
 
         if send_data.len() > 1 {
           let _ = socket.write_all(&send_data[0]).ok();
-          net::write_oob(&socket, 213);
+          net::write_oob(&socket, core::parse_args().out_of_band_charid.into());
 
           current_data = send_data[1].clone();
         }
@@ -90,7 +77,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     
         if send_data.len() > 1 {
           duplicate::send(&socket, send_data[0].clone());
-          net::write_oob(&socket, 213);
+          net::write_oob(&socket, core::parse_args().out_of_band_charid.into());
 
           current_data = send_data[1].clone();
         }
@@ -102,7 +89,11 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
 }
 
 fn main() {
-  let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
+  let config: AuxConfig = core::parse_args();
+
+  println!("{}", format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", ""));
+
+  let listener: TcpListener = TcpListener::bind(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).unwrap();
 
   for stream in listener.incoming() {
     match stream {
@@ -128,8 +119,9 @@ mod tests {
 
   fn can_send_requests_google() {
     let mut sender: Command = Command::new("curl");
+    let config: AuxConfig = core::parse_args();
 
-    sender.arg("--socks5").arg("127.0.0.1:7878").arg("https://www.google.com");
+    sender.arg("--socks5").arg(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).arg("https://www.google.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
@@ -141,8 +133,9 @@ mod tests {
 
   fn can_send_requests_youtube() {
     let mut sender: Command = Command::new("curl");
+    let config: AuxConfig = core::parse_args();
 
-    sender.arg("--socks5").arg("127.0.0.1:7878").arg("https://www.youtube.com");
+    sender.arg("--socks5").arg(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).arg("https://www.google.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
@@ -156,8 +149,9 @@ mod tests {
 
   fn can_send_requests_discord() {
     let mut sender: Command = Command::new("curl");
+    let config: AuxConfig = core::parse_args();
 
-    sender.arg("--socks5").arg("127.0.0.1:7878").arg("https://discord.com");
+    sender.arg("--socks5").arg(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).arg("https://www.google.com");
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
