@@ -126,6 +126,12 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
 fn main() {
   let config: AuxConfig = core::parse_args();
 
+  if std::env::args().map(|c| String::from(c)).collect::<Vec<String>>().contains(&String::from("--help")) {
+    println!("{}", core::get_help_text());
+
+    return;
+  }
+
   println!(" == Waterfall DPI bypass tool == 
 Configuration: {:#?}", config);
 
