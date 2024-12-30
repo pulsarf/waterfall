@@ -4,6 +4,8 @@ use std::env;
 pub enum Strategies {
   NONE,
   SPLIT,
+  DISORDER_TTL_CORRUPT,
+  FAKE_TTL_CORRUPT,
   DISORDER,
   FAKE,
   OOB,
@@ -53,6 +55,8 @@ impl Strategy {
       "--split" => Strategies::SPLIT,
       "--disorder" => Strategies::DISORDER,
       "--fake" => Strategies::FAKE,
+      "--disorder_ttlc" => Strategies::DISORDER_TTL_CORRUPT,
+      "--fake_ttlc" => Strategies::FAKE_TTL_CORRUPT,
       "--oob" => Strategies::OOB,
       "--disoob" => Strategies::DISOOB,
       _ => Strategies::NONE
@@ -69,6 +73,7 @@ pub struct AuxConfig {
 
   pub fake_packet_ttl: u8,
   pub fake_packet_sni: String,
+  pub fake_as_oob: bool,
 
   pub fake_packet_send_http: bool,
   pub fake_packet_host: String,
@@ -96,6 +101,7 @@ pub fn parse_args() -> AuxConfig {
     fake_packet_sni: String::from("yandex.ru"),
     fake_packet_send_http: false,
     fake_packet_host: String::from("yandex.ru"),
+    fake_as_oob: false,
     fake_packet_override_data: DataOverride::<Vec<u8>> {
       active: false,
       data: vec![0u8]
@@ -104,10 +110,7 @@ pub fn parse_args() -> AuxConfig {
     default_ttl: 128,
     out_of_band_charid: 213u8,
     
-    strategies: vec![DataOverride::<Strategy> {
-      active: false,
-      data: Strategy::from(String::from("--split"), String::from("5+"))
-    }]
+    strategies: vec![]
   };
 
   let mut args: Vec<String> = env::args().collect();
@@ -147,6 +150,9 @@ pub fn parse_args() -> AuxConfig {
       },
       "--fake_packet_send_http" => {
         config.fake_packet_send_http = true;
+      },
+      "--fake_as_oob" => {
+        config.fake_as_oob = true;
       },
       "--fake_packet_host" => {
         offset += 1 as usize;
@@ -192,6 +198,22 @@ pub fn parse_args() -> AuxConfig {
           data: Strategy::from(String::from("--disorder"), args[offset].clone())
         });
       },
+      "--disorder_ttlc" => {
+        offset += 1 as usize;
+
+        config.strategies.push(DataOverride::<Strategy> {
+          active: true,
+          data: Strategy::from(String::from("--disorder_ttlc"), args[offset].clone())
+        });
+      },
+      "--fake_ttlc" => {
+        offset += 1 as usize;
+
+        config.strategies.push(DataOverride::<Strategy> {
+          active: true,
+          data: Strategy::from(String::from("--fake_ttlc"), args[offset].clone())
+        });
+      },
       "--fake" => {
         offset += 1 as usize;
 
@@ -216,7 +238,7 @@ pub fn parse_args() -> AuxConfig {
           data: Strategy::from(String::from("--disoob"), args[offset].clone())
         });
       },
-      e => println!("[Err!] No such argument: {:?}", e)
+      e => { }
     }
 
     offset += 1 as usize;

@@ -24,15 +24,16 @@ use std::io::Write;
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = data.to_vec();
+  let mut display_data: String = String::from("");
 
   for strategy_raw in core::parse_args().strategies {
-    println!("[Send] Applied method: {:?}", strategy_raw);
-
     let strategy: Strategy = strategy_raw.data;
 
     match strategy.method {
       Strategies::NONE => { },
       Strategies::SPLIT => {
+        display_data += "[  SPLIT DATA ] ";
+
         let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
@@ -44,6 +45,30 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISORDER => {
+        display_data += "[  DATA2  ]";
+
+        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
+
+        socket.write_all(&send_data[1]);
+
+        current_data = send_data[0].clone();
+      },
+      Strategies::FAKE => {
+        display_data += "[  DATA1  ] [  DATA FAKE  ]";
+
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
+        
+        if send_data.len() > 1 {
+          socket.write_all(&send_data[0]);
+
+          drop::raw_send(&socket, fake::get_fake_packet(send_data[1].clone()));
+
+          current_data = send_data[1].clone();
+        }
+      },
+      Strategies::DISORDER_TTL_CORRUPT => {
+        display_data += "[  CORRUPTED DATA  ]";
+
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
@@ -52,17 +77,21 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
           current_data = send_data[1].clone();
         }
       },
-      Strategies::FAKE => {
+      Strategies::FAKE_TTL_CORRUPT => {
+        display_data += "[  CORRUPTED DATA  ] [  DATA FAKE  ]";
+
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
-          drop::send(&socket, fake::get_fake_packet(send_data[0].clone()));
           duplicate::send(&socket, send_data[0].clone());
+          drop::raw_send(&socket, fake::get_fake_packet(send_data[0].clone()));
 
           current_data = send_data[1].clone();
         }
       },
       Strategies::OOB => {
+        display_data += "[  DATA  ]  [  OUT-OF-BAND DATA FAKE  ]";
+
         let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data);
 
         if send_data.len() > 1 {
@@ -73,6 +102,8 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISOOB => { 
+        display_data += "[  CORRUPTED DATA  ]  [  OUT-OF-BAND DATA FAKE  ]";
+
         let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data);
     
         if send_data.len() > 1 {
@@ -85,20 +116,25 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     }
   }
 
+  display_data += " [ ..ETC ]";
+
+  println!("{}", display_data);
+
   current_data
 }
 
 fn main() {
   let config: AuxConfig = core::parse_args();
 
-  println!("{}", format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", ""));
+  println!(" == Waterfall DPI bypass tool == 
+Configuration: {:#?}", config);
 
   let listener: TcpListener = TcpListener::bind(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).unwrap();
 
   for stream in listener.incoming() {
     match stream {
       Ok(mut client) => socks::socks5_proxy(&mut client, client_hook),
-      Err(error) => println!("Socks5 proxy encountered an error: {}", error)
+      Err(error) => { }
     };
   }
 }
@@ -139,8 +175,6 @@ mod tests {
 
     let output: Output = sender.output().unwrap();
     let string: String = format!("{:?}", output);
-
-    println!("{}", string);
 
     assert_eq!(true, string.contains("html"));
   } 

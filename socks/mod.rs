@@ -76,7 +76,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
         match server_socket {
           Ok(mut socket) => {
             let _ = socket.set_nodelay(true);
-            println!("Connected to socket: {:?}", socket);
 
             let mut socket1: TcpStream = socket.try_clone().unwrap();
             let mut client1: TcpStream = client.try_clone().unwrap();
@@ -121,7 +120,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
             return;
           },
           Err(_error) => {
-            println!("Critical error happened! Couldn't restore from normal state, closing sockets: {:?}", _error);
+            println!("{:?}", _error);
 
             let _ = client.shutdown(Shutdown::Both);
             return;
@@ -133,6 +132,4 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
     },
     Err(_error) => false
   } {}
-
-  println!("Connection complete: {:?}", client);
 }
