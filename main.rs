@@ -25,7 +25,13 @@ use std::io::Write;
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = data.to_vec();
   let mut display_data: String = String::from("");
+  
+  if core::parse_args().synack {
+    display_data += "[FAKE SYN] ";
 
+    drop::raw_send(&socket, vec![255, 255, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]);
+  }
+  
   for strategy_raw in core::parse_args().strategies {
     let strategy: Strategy = strategy_raw.data;
 
@@ -45,15 +51,15 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISORDER => {
-        panic!("[ERR] WARNING! --disorder method doesn't work at that time. Use --disorder_ttlc instead.");
-
         display_data += "[  DATA2  ]";
 
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
 
-        socket.write_all(&send_data[1]);
+        if send_data.len() > 1 {
+          duplicate::send(&socket, send_data[0].clone());
 
-        current_data = send_data[0].clone();
+          current_data = send_data[1].clone();
+        }
       },
       Strategies::FAKE => {
         display_data += "[  DATA1  ] [  DATA FAKE  ]";
@@ -119,6 +125,12 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   }
 
   display_data += " [ ..ETC ]";
+  
+  if core::parse_args().synack { // ACK
+    display_data += " [FAKE ACK]";
+
+    drop::raw_send(&socket, vec![255, 255, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 5, 4, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]);
+  }
 
   println!("{}", display_data);
 

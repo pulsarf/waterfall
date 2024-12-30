@@ -77,9 +77,9 @@ pub struct AuxConfig {
 
   pub fake_packet_send_http: bool,
   pub fake_packet_host: String,
-
   pub fake_packet_override_data: DataOverride::<Vec<u8>>,
 
+  pub synack: bool,
   pub disorder_packet_ttl: u8,
   pub default_ttl: u8,
   pub out_of_band_charid: u8,
@@ -102,6 +102,7 @@ pub fn parse_args() -> AuxConfig {
     fake_packet_send_http: false,
     fake_packet_host: String::from("yandex.ru"),
     fake_as_oob: false,
+    synack: false,
     fake_packet_override_data: DataOverride::<Vec<u8>> {
       active: false,
       data: vec![0u8]
@@ -171,6 +172,9 @@ pub fn parse_args() -> AuxConfig {
         offset += 1 as usize;
 
         config.disorder_packet_ttl = args[offset].parse::<u8>().expect("FATAL: disorder_packet_ttl argument exceeds uint8 limit.");
+      },
+      "--synack" => {
+        config.synack = true;
       },
       "--default_ttl" => {
         offset += 1 as usize;
@@ -265,6 +269,8 @@ pub fn get_help_text() -> String {
 --fake_packet_host [String] - Fake host for fake packets. Tricks DPI
 --fake_packet_override_data [UNICODE String] - Overrides default packet data for fake packets.
 --fake_as_oob - Forces fake packets to be sent as Out-of-band data. May break some websites same as OOB module does. Useful for cases when deep packet inspection tool looks for OOB data.
+
+--synack - Wraps each packet into fake SYN and ACK. Those packets will be automatically dropped by server. Effective to use with disorder and fake.
 
 --split [Offset] - Applies TCP stream segmentation
 --disorder [Offset] - Applies TCP stream segmentation, corrupts first part

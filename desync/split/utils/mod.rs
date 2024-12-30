@@ -48,7 +48,6 @@ pub mod utils {
       }
 
       let hostname_size: usize = (((source[iter + 4] as u32) << 8) as u32 | (source[iter + 5] as u32)) as usize;
-      println!("{:?}", hostname_size);
       // Save the SNI and return from loop
 
       for jter in (iter + 6)..(6 + iter + hostname_size) {
