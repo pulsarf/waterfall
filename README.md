@@ -173,6 +173,12 @@ Currently, these options are implemented:
   May break some websites same as OOB module does.
   Useful for cases when deep packet inspection tool looks for OOB data.
 
+--synack - Wraps each packet into fake SYN and ACK.
+  Those packets will be automatically dropped by server.
+  But the DPI will process them as normal.
+  As the result, it will trick DPI about client and server roles.
+  Effective to use with disorder and fake.
+
 --split [Offset] - Applies TCP stream segmentation
 --disorder [Offset] - Applies TCP stream segmentation, corrupts first part
 --disorder_ttlc [Offset] - Applies TCP stream segmentation, corrupts first part by changing it's TTL/Hop-by-hop value
