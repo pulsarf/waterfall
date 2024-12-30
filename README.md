@@ -1,6 +1,9 @@
 # Waterfall
+> This project is in active development. If you're looking for actually working DPI bypass, refer to [zapret](<https://github.com/bol-van/zapret>) and [byedpi](<https://github.com/hufrea/byedpi>)
 
 High level deep packet inspection bypass utility with multiple strategies that can be used together.
+
+This project uses SOCKS5 Proxy to capture packets, but it's not a huge problem, since in Rust you can save TcpSream as raw socket or file descriptor.
 
 ## Introduction
 
@@ -95,13 +98,49 @@ Here's the schematic representation of what DPI will see:
 
 Repeating again even simpler: If you pass multiple strategies, the first one will be applied as it is, and the others will be applied to last fragments from previous result.
 
+More examples on how the program behaviour differs at different parameters:
+
+- --fake 1+s --disorder 10+s
+```
+|--------------------|---------------|---------------------|----------------|
+|  [DATA CORRUPTED]  |  [DATA FAKE]  |  [DATA1 CORRUPTED]  |  [DATA2 REAL]  |
+|--------------------|---------------|---------------------|----------------|
+```
+
+--disoob 5+s --split 1+s --fake 1+s
+
+Warning: this is a very complex case. The SNI will not likely by in the second part of the segment - therefore 1+s will have the same effect as 1+, because "s" will have usize index of 0.
+
+```
+|--------------------|---------------|-----------------------|------------------|-----------|
+|  [DATA CORRUPTED]  |  [DATA OOB ]  |  [DATA1.5 CORRUPTED]  |  [DATA1.5 FAKE]  |  [DATA2]  |
+|--------------------|---------------|-----------------------|------------------|-----------|
+```
+
+## Software limitations
+
+You must consider limitations that currently waterfall has. If you want to contribute at solving these issues, feel free to pull request.
+
+Currently Waterfall is incapable of:
+- Bypassing DPI that perfectly reassembles TCP stream that the server will see. This includes caching proxies that can be used by the client or the ISP. This vulnerability is solved by using QUIC protocol, which Waterfall doesn't support right now because of multiple bugs.
+- Fragment packets on IP level. This leads to UDP bypasses not being possible, therefore Waterfall won't use bypasses for QUIC. In plans to be fixed after bugs will be fixed.
+- **Bug:** Doesn't support UDP. Issue of `crate::socks` module. Should be fixed.
+- **Bug**: Cannot handle IPv6-based connections. Rather issue of `crate::parser`, or `crate::socks`. Should be fixed.
+
 ## Command-line interface
 
 Waterfall offers command line interface for managing the configuration, and keep much less hardcoded values.
 
+Warning: In future, more options MUST be added. The default TTL/Hop-by-hop values don't work for every ISP, and without modification of them, modules other than --split and --oob will not likely work.
+
 Currently, these options are implemented:
 
 ```
+./waterfall [OPTION] [VALUE]
+[Offset] is denoted as subcommand in format of N+[s]?,
+  where N is unsigned 32-bit integer, s - SNI Index.
+  [Offset] Block examples: 1+, 5+s, 13+s
+
 --split [Offset] - Applies TCP stream segmentation
 --disorder [Offset] - Applies TCP stream segmentation, corrupts first part
 --fake [Offset] - Applies TCP stream segmentation, corrupts first part and sends a duplicate of it with "yandex.ru" SNI
@@ -109,3 +148,36 @@ Currently, these options are implemented:
 --oob [Offset] - Applies TCP stream segmentation, sends Out-Of-Band byte with value of '213' between these segments.
 --disoob [Offset] - Applies TCP stream segmentation, corrupts first part and sends Out-Of-Band byte with value of '213' between these segments.
 ```
+
+## Packets capture
+
+Packets are captured via SOCKS5 proxy. Waterfall is a backend that modifies the traffic, and to run it on any platform, you'll have to use a SOCKS5 client.
+
+## Building, running and testing
+
+Build the project via `cargo`:
+
+```bash
+cargo build
+```
+
+Run the project:
+
+```bash
+cargo run
+```
+
+Test utilities and network capabilities:
+
+```bash
+cargo test
+```
+
+## Requirements
+
+This project requires support of libc or winapi. This means, the project must work with these platforms:
+
+- Unix (e.g freebsd, linux (including android), mach)
+- Windows
+
+iOS platform aren't and will never be supported. If you use apple's products, you won't get any blocked site working anyways.
