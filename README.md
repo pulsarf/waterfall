@@ -125,7 +125,6 @@ Currently Waterfall is incapable of:
 - Bypassing DPI that perfectly reassembles TCP stream that the server will see. This includes caching proxies that can be used by the client or the ISP. This vulnerability is solved by using QUIC protocol, which Waterfall doesn't support right now because of multiple bugs.
 - Fragment packets on IP level. This leads to UDP bypasses not being possible, therefore Waterfall won't use bypasses for QUIC. In plans to be fixed after bugs will be fixed.
 - **Bug:** Doesn't support UDP. Issue of `crate::socks` module. Should be fixed.
-- **Bug**: Cannot handle IPv6-based connections. Rather issue of `crate::parser`, or `crate::socks`. Should be fixed.
 
 ## Command-line interface
 
@@ -140,13 +139,34 @@ Currently, these options are implemented:
 [Offset] is denoted as subcommand in format of N+[s]?,
   where N is unsigned 32-bit integer, s - SNI Index.
   [Offset] Block examples: 1+, 5+s, 13+s
+  
+--bind_host [String] - Bind SOCKS5 Proxy to a specified host
+--bind_port [U16] - Bind SOCKS5 Proxy to a specified port
+
+--default_ttl [U8] - Default TTL value for adequate packets.
+--fake_packet_ttl [U8] - Default TTL value for packets that should reach ONLY DPI 
+--disorder_packet_ttl [U8] - Default TTL value for packets that SHOULD BE RESENT
+
+--fake_packet_sni [String] - Server name identification for fake packets.
+--fake_packet_send_http - Sets if fake module should mimic HTTP packets. 
+  Can trick DPI into thinking that connection is made over HTTP and force it to skip
+  Over next packets.
+--fake_packet_host [String] - Fake host for fake packets. Tricks DPI
+--fake_packet_override_data [UNICODE String] - Overrides default packet data for fake packets.
+--fake_as_oob - Forces fake packets to be sent as Out-of-band data. 
+  May break some websites same as OOB module does.
+  Useful for cases when deep packet inspection tool looks for OOB data.
 
 --split [Offset] - Applies TCP stream segmentation
 --disorder [Offset] - Applies TCP stream segmentation, corrupts first part
+--disorder_ttlc [Offset] - Applies TCP stream segmentation, corrupts first part by changing it's TTL/Hop-by-hop value
 --fake [Offset] - Applies TCP stream segmentation, corrupts first part and sends a duplicate of it with "yandex.ru" SNI
-  if present, otherwise, uses random bytes data with same length.
---oob [Offset] - Applies TCP stream segmentation, sends Out-Of-Band byte with value of '213' between these segments.
---disoob [Offset] - Applies TCP stream segmentation, corrupts first part and sends Out-Of-Band byte with value of '213' between these segments.
+--fake_ttlc [Offset] - Applies TCP stream segmentation, corrupts first part by changing it's TTL/Hop-by-hop value and sends a duplicate of it with "yandex.ru" SNI, overriden data or fake HTTP preset.
+  If present, otherwise, uses random bytes data with same length.
+--oob [Offset] - Applies TCP stream segmentation.
+  Sends Out-Of-Band byte with value of '213' between these segments.
+--disoob [Offset] - Applies TCP stream segmentation, corrupts first part.
+  Sends Out-Of-Band byte with value of '213' between these segments.
 ```
 
 ## Packets capture
