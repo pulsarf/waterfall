@@ -172,6 +172,8 @@ Currently, these options are implemented:
 --fake_as_oob - Forces fake packets to be sent as Out-of-band data. 
   May break some websites same as OOB module does.
   Useful for cases when deep packet inspection tool looks for OOB data.
+--fake_packet_reversed - Sends fake packets in reversed order.
+--fake_packet_double - Sends two fake packets instead of one.
 
 --synack - Wraps each packet into fake SYN and ACK.
   Those packets will be automatically dropped by server.
