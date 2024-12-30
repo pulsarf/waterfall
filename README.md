@@ -45,6 +45,14 @@ As the result, the first segment will be automatically re-sent.
 
 This method is way harder to be set up, since you'll have to configure TTL/Hop-by-hop options for packet that will be re-sent.
 
+You'll have to configure --disorder_packet_ttl parameter to make it work.
+
+Disorder has 2 variations.
+
+--disorder will fragment data and send them in reverse order. Use it if you're dealing with UDP or TCP.
+
+--disorder_ttlc will segment data and set low TTL for first segment. Use it if you're dealing with TCP.
+
 Deep packet inspection will see the stream like this:
 ```
 |----------|-----------|-----------|----------|
@@ -54,6 +62,14 @@ Deep packet inspection will see the stream like this:
 3. Sending fake data 
 
 This method is data disordering with an extension that sends a fake data after first segment was sent. If you pass this option multiple times, you will be able to spam data with fakes.
+
+This option is really hard to use, but it has highest efficiency on practice.
+
+Your target is to use options like --fake_packet_ttl and --fake_as_oob to make fake packets not to reach the server, but reach DPI.
+
+The --fake_ttlc variation sends corrupted UDP datagram or writes corrupted TCP data.
+
+The --fake variation simulates IP fragmentation and sends fake data via raw socket.
 
 Deep packet inspection will see the stream as follows:
 ```
