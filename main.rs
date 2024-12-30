@@ -25,7 +25,8 @@ use std::io::Write;
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = data.to_vec();
   let mut display_data: String = String::from("");
-  
+  let mut fake_active: bool = false;
+
   if core::parse_args().synack {
     display_data += "[FAKE SYN] ";
 
@@ -67,9 +68,10 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
         
         if send_data.len() > 1 {
+          fake_active = true;
           socket.write_all(&send_data[0]);
 
-          drop::raw_send(&socket, fake::get_fake_packet(send_data[1].clone()));
+          drop::raw_send(&socket, fake::get_fake_packet(send_data[if core::parse_args().fake_packet_reversed { 0 } else { 1 }].clone()));
 
           current_data = send_data[1].clone();
         }
@@ -91,6 +93,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
+          fake_active = true;
           duplicate::send(&socket, send_data[0].clone());
           drop::raw_send(&socket, fake::get_fake_packet(send_data[0].clone()));
 
@@ -130,6 +133,10 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     display_data += " [FAKE ACK]";
 
     drop::raw_send(&socket, vec![255, 255, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 5, 4, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]);
+  }
+
+  if core::parse_args().fake_packet_reversed && fake_active {
+    drop::raw_send(&socket, fake::get_fake_packet(current_data.clone()));
   }
 
   println!("{}", display_data);

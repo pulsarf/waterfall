@@ -78,6 +78,8 @@ pub struct AuxConfig {
   pub fake_packet_send_http: bool,
   pub fake_packet_host: String,
   pub fake_packet_override_data: DataOverride::<Vec<u8>>,
+  pub fake_packet_double: bool,
+  pub fake_packet_reversed: bool,
 
   pub synack: bool,
   pub disorder_packet_ttl: u8,
@@ -102,6 +104,8 @@ pub fn parse_args() -> AuxConfig {
     fake_packet_send_http: false,
     fake_packet_host: String::from("yandex.ru"),
     fake_as_oob: false,
+    fake_packet_double: false,
+    fake_packet_reversed: false,
     synack: false,
     fake_packet_override_data: DataOverride::<Vec<u8>> {
       active: false,
@@ -175,6 +179,12 @@ pub fn parse_args() -> AuxConfig {
       },
       "--synack" => {
         config.synack = true;
+      },
+      "--fake_packet_double" => {
+        config.fake_packet_double = true;
+      },
+      "--fake_packet_reversed" => {
+        config.fake_packet_reversed = true;
       },
       "--default_ttl" => {
         offset += 1 as usize;
@@ -269,6 +279,8 @@ pub fn get_help_text() -> String {
 --fake_packet_host [String] - Fake host for fake packets. Tricks DPI
 --fake_packet_override_data [UNICODE String] - Overrides default packet data for fake packets.
 --fake_as_oob - Forces fake packets to be sent as Out-of-band data. May break some websites same as OOB module does. Useful for cases when deep packet inspection tool looks for OOB data.
+--fake_packet_double - Send two fake packets instead of one.
+--fake_packet_reversed - Send fake packets in reverse-order.
 
 --synack - Wraps each packet into fake SYN and ACK. Those packets will be automatically dropped by server. Effective to use with disorder and fake.
 
