@@ -14,6 +14,7 @@ pub fn send(mut socket: &TcpStream, data: Vec<u8>) -> Result<(), std::io::Error>
 
 pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>) {
   let conf: core::AuxConfig = core::parse_args();
+  let _ = socket.set_ttl(conf.fake_packet_ttl.into());
 
   if cfg!(unix) {
     #[cfg(target_os = "linux")]
@@ -46,4 +47,6 @@ pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>) {
   } else {
     panic!("Unsupported OS type! Cannot use Out-Of-Band/Disordered Out-Of-Band");
   }
+
+  let _ = socket.set_ttl(conf.default_ttl.into());
 }

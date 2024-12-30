@@ -1,11 +1,11 @@
 pub mod utils;
 
 pub mod fake {
-  pub fn get_split_packet(packet_buffer: &[u8]) -> Vec<Vec<u8>> {
+  pub fn get_split_packet(packet_buffer: &[u8], strategy: crate::core::Strategy) -> Vec<Vec<u8>> {
     use crate::desync::fake::utils::utils;
 
     let (sni_start, sni_end) = utils::parse_sni_index(packet_buffer.to_vec());
-    let middle: u64 = ((sni_start + sni_end) / 2) as u64;
+    let middle: u64 = (strategy.base_index as u64) + if strategy.add_sni { ((sni_start + sni_end) / 2) as u64 } else { 0 };
 
     if middle < packet_buffer.to_vec().len().try_into().unwrap() && middle > 0 {
       let packet_parts: Vec<Vec<u8>> = utils::slice_packet(packet_buffer.to_vec(), middle);
@@ -49,6 +49,8 @@ a", host).replace("\"", "").replace("\"", "");
         if sni_start + sni_offset + 1 as u64 > packet.len().try_into().unwrap() {
           break;
         }
+        if iter + 1 > packet.len().try_into().unwrap() { break };
+        if sni_offset + 1 > fake_sni.len().try_into().unwrap() { break };
 
         packet[iter as usize] = fake_sni[sni_offset as usize].as_bytes()[0];
         sni_offset += 1;

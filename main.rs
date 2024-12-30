@@ -34,7 +34,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
       Strategies::SPLIT => {
         display_data += "[  SPLIT DATA ] ";
 
-        let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
           if let Err(_e) = socket.write_all(&send_data[0]) {
@@ -45,9 +45,11 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISORDER => {
+        panic!("[ERR] WARNING! --disorder method doesn't work at that time. Use --disorder_ttlc instead.");
+
         display_data += "[  DATA2  ]";
 
-        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
 
         socket.write_all(&send_data[1]);
 
@@ -56,7 +58,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
       Strategies::FAKE => {
         display_data += "[  DATA1  ] [  DATA FAKE  ]";
 
-        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
         
         if send_data.len() > 1 {
           socket.write_all(&send_data[0]);
@@ -69,7 +71,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
       Strategies::DISORDER_TTL_CORRUPT => {
         display_data += "[  CORRUPTED DATA  ]";
 
-        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
           duplicate::send(&socket, send_data[0].clone());
@@ -80,7 +82,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
       Strategies::FAKE_TTL_CORRUPT => {
         display_data += "[  CORRUPTED DATA  ] [  DATA FAKE  ]";
 
-        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
           duplicate::send(&socket, send_data[0].clone());
@@ -92,7 +94,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
       Strategies::OOB => {
         display_data += "[  DATA  ]  [  OUT-OF-BAND DATA FAKE  ]";
 
-        let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
           let _ = socket.write_all(&send_data[0]).ok();
@@ -104,7 +106,7 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
       Strategies::DISOOB => { 
         display_data += "[  CORRUPTED DATA  ]  [  OUT-OF-BAND DATA FAKE  ]";
 
-        let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data);
+        let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data, strategy);
     
         if send_data.len() > 1 {
           duplicate::send(&socket, send_data[0].clone());

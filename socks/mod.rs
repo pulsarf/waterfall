@@ -49,8 +49,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
 
         let mut raw_host = parsed_data.host_raw;
 
-        println!("[*] Connecting to port {:?}", parsed_data.port);
-
         let server_socket = TcpStream::connect(match raw_host.len() {
           4 => {
             let mut sl: [u8; 4] = [0, 0, 0, 0];
