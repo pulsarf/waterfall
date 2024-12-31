@@ -5,7 +5,7 @@ use crate::IpParser;
 use std::{
   io::{Read, Write},
   net::{TcpStream, SocketAddr},
-  thread
+  thread, time
 };
 
 pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static) {
@@ -45,8 +45,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
 
         packet.extend_from_slice(&parsed_data.host_unprocessed.as_slice());
         packet.extend_from_slice(&parsed_data.port.to_be_bytes());
-
-        println!("buffer {:?} hunp {:?}", buffer, parsed_data.host_unprocessed);
 
         // Create a socket connection and pipe to messages receiver 
         // Which is wrapped in other function
@@ -100,6 +98,8 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
                     }
                   }, Err(_error) => { }
                 }
+
+                thread::sleep(time::Duration::from_millis(30));
               }
             });
 
@@ -117,6 +117,8 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
 
                   }, Err(_error) => continue
                 }
+
+                thread::sleep(time::Duration::from_millis(30));
               }
             });
 

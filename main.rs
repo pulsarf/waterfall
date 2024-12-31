@@ -24,12 +24,9 @@ use std::io::Write;
 
 fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = data.to_vec();
-  let mut display_data: String = String::from("");
   let mut fake_active: bool = false;
 
   if core::parse_args().synack {
-    display_data += "[FAKE SYN] ";
-
     drop::raw_send(&socket, vec![255, 255, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]);
   }
   
@@ -39,8 +36,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     match strategy.method {
       Strategies::NONE => { },
       Strategies::SPLIT => {
-        display_data += "[  SPLIT DATA ] ";
-
         let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
@@ -52,8 +47,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISORDER => {
-        display_data += "[  DATA2  ]";
-
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
@@ -63,8 +56,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::FAKE => {
-        display_data += "[  DATA1  ] [  DATA FAKE  ]";
-
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
         
         if send_data.len() > 1 {
@@ -77,8 +68,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISORDER_TTL_CORRUPT => {
-        display_data += "[  CORRUPTED DATA  ]";
-
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
@@ -88,8 +77,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::FAKE_TTL_CORRUPT => {
-        display_data += "[  CORRUPTED DATA  ] [  DATA FAKE  ]";
-
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
@@ -101,8 +88,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::OOB => {
-        display_data += "[  DATA  ]  [  OUT-OF-BAND DATA FAKE  ]";
-
         let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
@@ -113,8 +98,6 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISOOB => { 
-        display_data += "[  CORRUPTED DATA  ]  [  OUT-OF-BAND DATA FAKE  ]";
-
         let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data, strategy);
     
         if send_data.len() > 1 {
@@ -127,19 +110,13 @@ fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
     }
   }
 
-  display_data += " [ ..ETC ]";
-  
   if core::parse_args().synack { // ACK
-    display_data += " [FAKE ACK]";
-
     drop::raw_send(&socket, vec![255, 255, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 5, 4, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]);
   }
 
   if core::parse_args().fake_packet_reversed && fake_active {
     drop::raw_send(&socket, fake::get_fake_packet(current_data.clone()));
   }
-
-  println!("{}", display_data);
 
   current_data
 }
