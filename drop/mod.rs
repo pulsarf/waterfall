@@ -16,6 +16,10 @@ pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>) {
   let conf: core::AuxConfig = core::parse_args();
   let _ = socket.set_ttl(conf.fake_packet_ttl.into());
 
+  let mut fake_data = vec![255, 255, 1, 127, 0, 0, 1, 136, 0, 0, 0, 0, 0, 16, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0];
+
+  fake_data.extend_from_slice(data.as_slice());
+
   if cfg!(unix) {
     #[cfg(target_os = "linux")]
     use libc::{c_int, send, MSG_OOB};
@@ -42,7 +46,7 @@ pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>) {
     #[cfg(target_os = "windows")]
     let _ = unsafe {
       #[cfg(target_os = "windows")]
-      send(rs.try_into().unwrap(), (&data.as_slice()).as_ptr() as *const _, 1, if conf.fake_as_oob { MSG_OOB } else { 0 });
+      send(rs.try_into().unwrap(), (&fake_data.as_slice()).as_ptr() as *const _, 1, if conf.fake_as_oob { MSG_OOB } else { 0 });
     };
   } else {
     panic!("Unsupported OS type! Cannot use Out-Of-Band/Disordered Out-Of-Band");

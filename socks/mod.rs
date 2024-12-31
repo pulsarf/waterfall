@@ -1,7 +1,8 @@
 use std::net::Shutdown;
 use std::sync::Arc;
-use std::sync::mpsc;
+
 use crate::IpParser;
+use crate::core;
 
 use std::{
   io::{Read, Write},
@@ -85,12 +86,19 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       thread::spawn(move || {
         let msg_buffer: &mut [u8] = &mut [0u8; 1024];
         let client_hook_fn = Arc::clone(&func);
+        let mut hops: u64 = 0;
 
         loop {
           match client1.read(msg_buffer) {
             Ok(size) => {
               if size > 0 {
-                let _ = socket1.write_all(&client_hook_fn(&socket1, &msg_buffer[..size]));
+                if hops < core::parse_args().packet_hop {
+                  let _ = socket1.write_all(&client_hook_fn(&socket1, &msg_buffer[..size]));
+
+                  hops += 1;
+                } else {
+                  let _ = socket1.write_all(&msg_buffer[..size]);
+                }
               } else { break }
             }, Err(_error) => break
           }

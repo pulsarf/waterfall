@@ -1,4 +1,3 @@
-
 pub mod utils {
   pub fn aob_scan(target: Vec<u8>, source: Vec<u8>) -> usize {
     for (position, window) in source.windows(target.len()).enumerate() {
@@ -48,8 +47,6 @@ pub mod utils {
       }
 
       let hostname_size: usize = (((source[iter + 4] as u32) << 8) as u32 | (source[iter + 5] as u32)) as usize;
-     
-      // Save the SNI and return from loop
 
       for jter in (iter + 6)..(6 + iter + hostname_size) {
         if jter > source.len() {
@@ -70,22 +67,44 @@ pub mod utils {
 
   pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {
     'label: for iter in 0..source.len() {
-      if iter + 8 > source.len() {
+      if iter + 5 > source.len() {
         break 'label;
       }
 
-      if source[iter] != 0 || source[iter + 1] != 0 {
+      if source[iter] != 0x01 {
         continue;
       }
 
-      if ((source[iter + 3] as i64) - (source[iter + 5] as i64)).abs() != 2 {
-        continue;
+      let message_length = ((source[iter + 1] as u16) << 8) | (source[iter + 2] as u16);
+      let end_of_message = iter + 3 + message_length as usize;
+
+      if end_of_message > source.len() {
+        break 'label;
       }
 
-      let hostname_size: u32 = (((source[iter + 4] as u32) << 8) as u32 | (source[iter + 5] as u32)) as u32;
-      let start_index: u32 = (iter + 6).try_into().unwrap();
+      let mut pos = iter + 3;
+      while pos < end_of_message {
+        if pos + 4 > end_of_message {
+          break;
+        }
 
-      return (start_index, start_index + hostname_size);
+        let extension_type = ((source[pos] as u16) << 8) | (source[pos + 1] as u16);
+        let extension_length = ((source[pos + 2] as u16) << 8) | (source[pos + 3] as u16);
+
+        if extension_type == 0x00 {
+          if pos + 4 + extension_length as usize > end_of_message {
+            break;
+          }
+
+          let hostname_length = ((source[pos + 4] as u16) << 8) | (source[pos + 5] as u16);
+          let start_index = (pos + 6) as u32;
+          let end_index = start_index + hostname_length as u32;
+
+          return (start_index, end_index);
+        }
+
+        pos += 4 + extension_length as usize;
+      }
     }
 
     (0, 0)
@@ -93,12 +112,10 @@ pub mod utils {
 }
 
 #[cfg(test)]
-
 mod tests {
   use super::*;
 
   #[test]
-
   fn test_aob_scan_start() {
     let pattern_start: usize = utils::aob_scan(vec![0, 5], vec![0, 5, 6, 2]);
 
@@ -106,21 +123,18 @@ mod tests {
   }
 
   #[test]
-
   fn test_aob_scan_middle() {
     assert_eq!(3 as usize, 
       utils::aob_scan(vec![16, 43], vec![78, 34, 22, 16, 43, 27]));
   }
 
   #[test]
-
   fn test_aob_scan_end() {
     assert_eq!(5 as usize,
       utils::aob_scan(vec![8, 1], vec![0, 0, 0, 0, 0, 8, 1]));
   }
 
   #[test]
-
   fn test_slice_packet() {
     let packet: Vec<u8> = vec![56, 78, 32];
 
@@ -131,7 +145,6 @@ mod tests {
   }
 
   #[test]
-
   fn test_sni_parser() {
     let mut packet: Vec<u8> = vec![0, 0, 0];
     let sni: String = String::from("discord.com");

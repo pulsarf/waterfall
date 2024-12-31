@@ -85,6 +85,7 @@ pub struct AuxConfig {
   pub disorder_packet_ttl: u8,
   pub default_ttl: u8,
   pub out_of_band_charid: u8,
+  pub packet_hop: u64,
 
   pub strategies: Vec<DataOverride::<Strategy>>
 }
@@ -114,6 +115,7 @@ pub fn parse_args() -> AuxConfig {
     disorder_packet_ttl: 8,
     default_ttl: 128,
     out_of_band_charid: 213u8,
+    packet_hop: std::u64::MAX,
     
     strategies: vec![]
   };
@@ -176,6 +178,11 @@ pub fn parse_args() -> AuxConfig {
         offset += 1 as usize;
 
         config.disorder_packet_ttl = args[offset].parse::<u8>().expect("FATAL: disorder_packet_ttl argument exceeds uint8 limit.");
+      },
+      "--packet_hop" => {
+        offset += 1 as usize;
+
+        config.packet_hop = args[offset].parse::<u64>().expect("FATAL: packet_hop argument exceeds uint64 limit.");
       },
       "--synack" => {
         config.synack = true;
