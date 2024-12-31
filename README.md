@@ -79,13 +79,21 @@ Deep packet inspection will see the stream as follows:
 ```
 4. Fake via OOB
 
-This method is same as split, but a fake OOB data will be send in between these segments. This method will work only when the DPI doesn't ignore Out of band bytes.
+This method is same as split, but the first data will be send as OOB data, with URG flag being set to 1. 
+
+Since you can send only one byte as out of band, last byte is being manually appended.
+
+So, the normal data will be sent to the server, and the last out of band byte will go by it's special channel.
+
+Most of HTTP servers ignore Out-of-band channel, because of it's complexity and they simply don't use it.
+
+This method will work only when the DPI doesn't ignore Out of band bytes.
 
 Deep packet inspection will see the stream as following:
 ```
-|----------|------------------|-----------|
-|  [DATA]  | OUT OF BAND DATA |  [DATA1]  |
-|----------|------------------|-----------|
+|------------------|-----------|
+| OUT OF BAND DATA |  [DATA1]  |
+|------------------|-----------|
 ```
 5. Disordered fake via OOB
 
@@ -174,6 +182,7 @@ Currently, these options are implemented:
   Useful for cases when deep packet inspection tool looks for OOB data.
 --fake_packet_reversed - Sends fake packets in reversed order.
 --fake_packet_double - Sends two fake packets instead of one.
+--packet_hop [U8] - Applies all traffic modifications only to specific number of packets.
 
 --synack - Wraps each packet into fake SYN and ACK.
   Those packets will be automatically dropped by server.
