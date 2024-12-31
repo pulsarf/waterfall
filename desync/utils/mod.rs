@@ -71,28 +71,16 @@ pub mod utils {
         break 'label;
       }
 
-      if source[iter] != 0x01 {
-        continue;
-      }
-
-      let message_length = ((source[iter + 1] as u16) << 8) | (source[iter + 2] as u16);
-      let end_of_message = iter + 3 + message_length as usize;
-
-      if end_of_message > source.len() {
-        break 'label;
-      }
-
       let mut pos = iter + 3;
-      while pos < end_of_message {
-        if pos + 4 > end_of_message {
+      while pos < source.len() {
+        if pos + 4 > source.len() {
           break;
         }
 
-        let extension_type = ((source[pos] as u16) << 8) | (source[pos + 1] as u16);
         let extension_length = ((source[pos + 2] as u16) << 8) | (source[pos + 3] as u16);
 
-        if extension_type == 0x00 {
-          if pos + 4 + extension_length as usize > end_of_message {
+        if source[pos] == 0 && source[pos + 1] == 0 {
+          if pos + 4 + extension_length as usize > source.len() {
             break;
           }
 

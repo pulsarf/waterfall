@@ -52,7 +52,7 @@ pub fn set_ttl_raw(mut socket: &TcpStream, ttl: u8) {
 pub fn send(mut socket: &TcpStream, packet: Vec<u8>) -> Result<(), std::io::Error> {
   let conf: core::AuxConfig = core::parse_args();
 
-  set_ttl_raw(&socket, conf.disorder_packet_ttl.into());
+  set_ttl_raw(&socket, 0);
   socket.write_all(&packet.as_slice())?;
   set_ttl_raw(&socket, conf.default_ttl.into());
 
