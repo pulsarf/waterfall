@@ -28,17 +28,31 @@ pub mod parsers {
           let domain = &buffer[5..5 + domain_length];
           let domain_str = std::str::from_utf8(domain).unwrap().to_owned() + ":443";
 
-          let domain_slice = domain_str.to_socket_addrs().unwrap().next().unwrap();
-          let ip_buffer: Vec<u8> = match domain_slice.ip() {
-            IpAddr::V4(ip) => ip.octets().to_vec(),
-            IpAddr::V6(ip) => ip.octets().to_vec(),
-          };
+          let domain_slice = domain_str.to_socket_addrs();
 
-          IpParser {
-            dest_addr_type,
-            host_raw: ip_buffer,
-            host_unprocessed: Vec::from(&buffer[5..5 + domain_length]),
-            port: 443
+          match domain_slice {
+            Ok(ref dom) => {
+              let ip_buffer: Vec<u8> = match domain_slice.unwrap().next().unwrap().ip() {
+                IpAddr::V4(ip) => ip.octets().to_vec(),
+                IpAddr::V6(ip) => ip.octets().to_vec(),
+              };
+
+              IpParser {
+                dest_addr_type,
+                host_raw: ip_buffer,
+                host_unprocessed: Vec::from(&buffer[5..5 + domain_length]),
+                port: 443
+              }
+            }, Err(_) => { 
+              println!("[FATAL] Failed to parse domain {:?}", domain_str);
+
+              IpParser {
+                dest_addr_type,
+                host_raw: vec![0, 0, 0, 0],
+                host_unprocessed: Vec::from(&buffer[5..5 + domain_length]),
+                port: 443
+              }
+            }
           }
         },
         _ => {
