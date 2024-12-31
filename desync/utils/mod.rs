@@ -66,32 +66,38 @@ pub mod utils {
   }
 
   pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {
-    'label: for iter in 0..source.len() {
-      if iter + 5 > source.len() {
-        break 'label;
-      }
+    if source[0] != 0x16 { return (0, 0) };
 
-      let mut pos = iter + 3;
-      while pos < source.len() {
-        if pos + 4 > source.len() {
-          break;
-        }
+    if source[5] != 0x01 {
+      return (0, 0);
+    }
+ 
+    // 10 + 32 (client random) = 42. Session ID starts at index 43 for TLS 1.3
+    // Max packet size possible is u32, since message length is u16 and 1 additional byte
+    // will overflow to u32
 
-        let extension_length = ((source[pos + 2] as u16) << 8) | (source[pos + 3] as u16);
+    let mut offset: u32 = 43;
 
-        if source[pos] == 0 && source[pos + 1] == 0 {
-          if pos + 4 + extension_length as usize > source.len() {
-            break;
-          }
+    offset += source[offset as usize] as u32;
 
-          let hostname_length = ((source[pos + 4] as u16) << 8) | (source[pos + 5] as u16);
-          let start_index = (pos + 6) as u32;
-          let end_index = start_index + hostname_length as u32;
+    // Now we're at chipher suites. Skip over through these data. We don't need them to parse SNI.
 
-          return (start_index, end_index);
-        }
+    let cipher_suites_length: u16 = source[(offset + 1) as usize] as u16;
 
-        pos += 4 + extension_length as usize;
+    offset += cipher_suites_length as u32;
+
+    // Skip over compression methods and extensions length. Then we start an AOB scan for pattern [0x00, 0x00]
+
+    offset += source[offset as usize] as u32;
+    offset += 2;
+
+    for iter in offset..(source.len() as u32) {
+      if source[iter as usize] == 0x00 && source[(iter + 1) as usize] == 0x00 {
+        // We had successfully found SNI offset! :happyhappyhappy_cat:
+
+        let sni_length: u16 = source[(iter + 5) as usize] as u16;
+
+        return (iter + 6, iter + 8 + sni_length as u32);
       }
     }
 
