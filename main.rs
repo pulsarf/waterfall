@@ -22,7 +22,7 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::io::Write;
 
-fn client_hook(mut socket: TcpStream, data: &[u8]) -> Vec<u8> {
+fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = data.to_vec();
   let mut fake_active: bool = false;
 

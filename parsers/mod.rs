@@ -24,6 +24,8 @@ pub mod parsers {
           }
         },
         3 => {
+          println!("{:?} {:?}", buffer[4], buffer);
+
           let domain_length = buffer[4] as usize;
           let domain = &buffer[5..5 + domain_length];
           let domain_str = std::str::from_utf8(domain).unwrap().to_owned() + ":443";
@@ -40,7 +42,7 @@ pub mod parsers {
               IpParser {
                 dest_addr_type,
                 host_raw: ip_buffer,
-                host_unprocessed: Vec::from(&buffer[5..5 + domain_length]),
+                host_unprocessed: domain.to_vec(),
                 port: 443
               }
             }, Err(_) => { 
@@ -49,7 +51,7 @@ pub mod parsers {
               IpParser {
                 dest_addr_type,
                 host_raw: vec![0, 0, 0, 0],
-                host_unprocessed: Vec::from(&buffer[5..5 + domain_length]),
+                host_unprocessed: domain.to_vec(),
                 port: 443
               }
             }
