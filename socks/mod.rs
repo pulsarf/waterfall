@@ -32,17 +32,21 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
         // Client authentification packet. Reply with [5, 0] which stands for
         // no-authentification 
 
-        let _ = client.write(&[5, 0]);
+        let _ = client.write_all(&[5, 0]);
 
         state_auth = true;
       } else {
-        let parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
+        let mut parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
         let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
 
-        packet.extend_from_slice(&parsed_data.host_raw.as_slice());
+        if parsed_data.dest_addr_type == 3 {
+          packet.extend_from_slice(&[parsed_data.host_unprocessed.len().try_into().unwrap()]);
+        }
+
+        packet.extend_from_slice(&parsed_data.host_unprocessed.as_slice());
         packet.extend_from_slice(&parsed_data.port.to_be_bytes());
 
-        let _ = client.write(&packet);
+        println!("buffer {:?} hunp {:?}", buffer, parsed_data.host_unprocessed);
 
         // Create a socket connection and pipe to messages receiver 
         // Which is wrapped in other function
@@ -75,7 +79,10 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
 
         match server_socket {
           Ok(mut socket) => {
+            let _ = client.write_all(&packet);
+
             let _ = socket.set_nodelay(true);
+            let _ = client.set_nodelay(true);
 
             let mut socket1: TcpStream = socket.try_clone().unwrap();
             let mut client1: TcpStream = client.try_clone().unwrap();
@@ -90,8 +97,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
                   Ok(size) => {
                     if size > 0 {
                       let _ = client.write_all(&msg_buffer[..size]);
-                    } else {
-                      let _ = client.shutdown(Shutdown::Both);
                     }
                   }, Err(_error) => { }
                 }
@@ -108,8 +113,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(TcpStream
                   Ok(size) => {
                     if size > 0 {
                       let _ = socket1.write_all(&client_hook_fn(socket1.try_clone().unwrap(), &msg_buffer[..size]));
-                    } else {
-                      let _ = socket1.shutdown(Shutdown::Both);
                     }
 
                   }, Err(_error) => continue
