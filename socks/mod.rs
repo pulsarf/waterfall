@@ -1,5 +1,6 @@
 use std::net::Shutdown;
 use std::sync::Arc;
+use std::sync::mpsc;
 use crate::IpParser;
 
 use std::{
@@ -9,23 +10,14 @@ use std::{
 };
 
 pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static) {
-  let mut client: TcpStream = match proxy_client.try_clone() {
-    Ok(socket) => socket,
-    Err(_error) => {
-      return;
-    }
-  };
-
-  let _ = client.set_nodelay(true);
+  let mut client: TcpStream = proxy_client.try_clone().unwrap();
 
   let mut buffer = [0 as u8; 128];
 
-  let mut state_auth: bool = false;
-
-  client.read(&mut buffer).unwrap();
-  let _ = client.write_all(&[5, 0]);
-
-  client.read(&mut buffer).unwrap();
+  client.set_nodelay(true);
+  client.read(&mut buffer);
+  client.write_all(&[5, 0]);
+  client.read(&mut buffer);
   
   let mut parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
   let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
@@ -40,25 +32,21 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
   // Create a socket connection and pipe to messages receiver 
   // Which is wrapped in other function
 
-  let mut raw_host = parsed_data.host_raw;
-
-  let server_socket = TcpStream::connect(match raw_host.len() {
+  let server_socket = TcpStream::connect(match parsed_data.host_raw.len() {
     4 => {
       let mut sl: [u8; 4] = [0, 0, 0, 0];
-      raw_host.resize(4, 0);
 
       for iter in 0..4 {
-        sl[iter] = raw_host[iter];
+        sl[iter] = parsed_data.host_raw[iter];
       }
 
       SocketAddr::new(sl.into(), parsed_data.port)
     },
     16 => {
       let mut sl: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-      raw_host.resize(16, 0);
 
       for iter in 0..16 {
-        sl[iter] = raw_host[iter];
+        sl[iter] = parsed_data.host_raw[iter];
       }
 
       SocketAddr::new(sl.into(), parsed_data.port)
@@ -86,9 +74,11 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
             Ok(size) => {
               if size > 0 {
                 let _ = client.write_all(&msg_buffer[..size]);
-              }
-            }, Err(_error) => { }
+              } else { break }
+            }, Err(_error) => break
           }
+
+          thread::sleep(time::Duration::from_millis(30));
         }
       });
 
@@ -101,9 +91,11 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
             Ok(size) => {
               if size > 0 {
                 let _ = socket1.write_all(&client_hook_fn(&socket1, &msg_buffer[..size]));
-              }
-            }, Err(_error) => continue
+              } else { break }
+            }, Err(_error) => break
           }
+
+          thread::sleep(time::Duration::from_millis(30));
         }
       });
     },

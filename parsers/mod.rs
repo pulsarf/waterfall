@@ -24,8 +24,6 @@ pub mod parsers {
           }
         },
         3 => {
-          println!("{:?} {:?}", buffer[4], buffer);
-
           let domain_length = buffer[4] as usize;
           let domain = &buffer[5..5 + domain_length];
           let domain_str = std::str::from_utf8(domain).unwrap().to_owned() + ":443";
