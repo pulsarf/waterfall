@@ -67,6 +67,7 @@ pub mod utils {
 
   pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {
     if source[0] != 0x16 { return (0, 0) };
+    if source.len() < 48 { return (0, 0) };
 
     if source[5] != 0x01 {
       return (0, 0);
@@ -92,6 +93,8 @@ pub mod utils {
     offset += 2;
 
     for iter in offset..(source.len() as u32) {
+      if iter + 1 > source.len().try_into().unwrap() { break };
+
       if source[iter as usize] == 0x00 && source[(iter + 1) as usize] == 0x00 {
         // We had successfully found SNI offset! :happyhappyhappy_cat:
 
