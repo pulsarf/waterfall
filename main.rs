@@ -91,15 +91,9 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
-          let mut ax_part: Vec<u8> = Vec::from(send_data[0].clone());
-          let last_part: u8 = ax_part[ax_part.len() - 1];
-          let arr_len: usize = ax_part.len();
+          let mut ax_part: Vec<u8> = send_data[0].clone();
 
-          ax_part[arr_len - 1] = core::parse_args().out_of_band_charid.into();
-          
-          ax_part.remove(arr_len - 1);
-
-          let _ = socket.write_all(&send_data[0].clone()).ok();
+          ax_part.push(core::parse_args().out_of_band_charid.into());
 
           net::write_oob_multiplex(&socket, ax_part);
 
@@ -112,15 +106,9 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
         duplicate::set_ttl_raw(&socket, 1);
 
         if send_data.len() > 1 {
-          let mut ax_part: Vec<u8> = Vec::from(send_data[0].clone());
-          let last_part: u8 = ax_part[ax_part.len() - 1];
-          let arr_len: usize = ax_part.len();
+          let mut ax_part: Vec<u8> = send_data[0].clone();
 
-          ax_part[arr_len - 1] = core::parse_args().out_of_band_charid.into();
-          
-          ax_part.remove(arr_len - 1);
-
-          let _ = socket.write_all(&send_data[0].clone()).ok();
+          ax_part.push(core::parse_args().out_of_band_charid.into());
 
           net::write_oob_multiplex(&socket, ax_part);
 

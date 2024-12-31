@@ -36,6 +36,7 @@ pub fn write_oob(socket: &TcpStream, oob_char: u8) {
 
 pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>) {
   let data1 = oob_data.as_slice();
+  let oob_len = oob_data.len();
 
   if cfg!(unix) {
     #[cfg(target_os = "linux")]
@@ -49,7 +50,7 @@ pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>) {
     #[cfg(target_os = "linux")]
     let _ = unsafe {
       #[cfg(target_os = "linux")]
-      send(fd, &data1.as_ptr() as *const _, 1, MSG_OOB);
+      send(fd, &data1.as_ptr() as *const _, oob_len.try_into().unwrap(), MSG_OOB);
     };
   } else if cfg!(windows) {
     #[cfg(target_os = "windows")]
@@ -63,7 +64,7 @@ pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>) {
     #[cfg(target_os = "windows")]
     let _ = unsafe {
       #[cfg(target_os = "windows")]
-      send(rs.try_into().unwrap(), data1.as_ptr() as *const _, 1, MSG_OOB);
+      send(rs.try_into().unwrap(), data1.as_ptr() as *const _, oob_len.try_into().unwrap(), MSG_OOB);
     };
   } else {
     panic!("Unsupported OS type! Cannot use Out-Of-Band/Disordered Out-Of-Band");

@@ -93,9 +93,13 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
             Ok(size) => {
               if size > 0 {
                 if hops < core::parse_args().packet_hop {
-                  let _ = socket1.write_all(&client_hook_fn(&socket1, &msg_buffer[..size]));
+                  let data: Vec<u8> = client_hook_fn(&socket1, &msg_buffer[..size]);
 
-                  hops += 1;
+                  if data.len() > 1 {
+                    let _ = socket1.write_all(&data);
+
+                    hops += 1;
+                  }
                 } else {
                   let _ = socket1.write_all(&msg_buffer[..size]);
                 }
