@@ -81,6 +81,11 @@ pub struct AuxConfig {
   pub fake_packet_double: bool,
   pub fake_packet_reversed: bool,
 
+  pub http_host_cmix: bool,
+  pub http_host_rmspace: bool,
+  pub http_host_space: bool,
+  pub http_domain_cmix: bool,
+
   pub synack: bool,
   pub disorder_packet_ttl: u8,
   pub default_ttl: u8,
@@ -116,6 +121,10 @@ pub fn parse_args() -> AuxConfig {
     default_ttl: 128,
     out_of_band_charid: 213u8,
     packet_hop: std::u64::MAX,
+    http_host_cmix: false,
+    http_host_rmspace: false,
+    http_host_space: false,
+    http_domain_cmix: false,
     
     strategies: vec![]
   };
@@ -160,6 +169,18 @@ pub fn parse_args() -> AuxConfig {
       },
       "--fake_as_oob" => {
         config.fake_as_oob = true;
+      },
+      "--http_host_cmix" => {
+        config.http_host_cmix = true;
+      },
+      "--http_domain_cmix" => {
+        config.http_domain_cmix = true;
+      },
+      "--http_host_rmspace" => {
+        config.http_host_rmspace = true;
+      },
+      "--http_host_space" => {
+        config.http_host_space = true;
       },
       "--fake_packet_host" => {
         offset += 1 as usize;
@@ -289,6 +310,12 @@ pub fn get_help_text() -> String {
 --fake_packet_double - Send two fake packets instead of one.
 --fake_packet_reversed - Send fake packets in reverse-order.
 
+--http_host_cmix - Mix Host header case in HTTP
+--http_host_rmspace - Remove space after Host: header in HTTP
+--http_host_space - Add space after Host: header in HTTP
+--http_domain_cmix - Mix case in HTTP domain
+
+--packet_hop - Max tampers/desyncs for connection
 --synack - Wraps each packet into fake SYN and ACK. Those packets will be automatically dropped by server. Effective to use with disorder and fake.
 
 --split [Offset] - Applies TCP stream segmentation
