@@ -219,6 +219,11 @@ Currently, these options are implemented:
 --fake_packet_double - Sends two fake packets instead of one.
 --packet_hop [U8] - Applies all traffic modifications only to specific number of packets.
 
+--http_host_cmix - Mix Host header case in HTTP
+--http_host_rmspace - Remove space after Host: header in HTTP
+--http_host_space - Add space after Host: header in HTTP
+--http_domain_cmix - Mix case in HTTP domain
+
 --synack - Wraps each packet into fake SYN and ACK.
   Those packets will be automatically dropped by server.
   But the DPI will process them as normal.
