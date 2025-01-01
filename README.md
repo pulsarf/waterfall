@@ -372,13 +372,22 @@ geneva documentation: [https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf](https:
 #### waterfall::core::Strategy
 
 public fields:
+
   pub method: Strategies,
+  
   pub base_index: usize,
+  
   pub add_sni: bool,
+  
   pub add_host: bool
 
 public methods:
   `pub fn from(first: String, second: String) -> Strategy `
+
+The from method parses Strategy by first CLI argument and second CLI argument.
+
+Doesn't handle singular arguments only.
+
 
 -------------
 
@@ -455,22 +464,34 @@ Writes a data to the socket, the last byte is automatically sent as out of band.
 #### waterfall::parsers::parsers::IpParser
 
 public fields:
+
  pub host_raw: Vec<u8>,
+ 
  pub host_unprocessed: Vec<u8>,
+ 
  pub port: u16,
+ 
  pub dest_addr_type: u8
 
 public methods:
   `pub fn parse(buffer: Vec<u8>) -> IpParser`
 
 host_raw - Host, extracted from the buffer and processed by the parser. 
+
   Rather Ipv4 or Ipv6 address.
+  
 host_unprocessed - Host, extracted from buffer.
+
   May be ipv4, ipv6 or a domain.
+  
 port - Parsed from buffer port.
+
 dest_addr_type - Address type given by the client through socks5 proxy.
+
   1 => ipv4
+  
   3 => domain
+  
   4 => ipv6
 
 ### parse method
