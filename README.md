@@ -223,6 +223,7 @@ Currently, these options are implemented:
 --http_host_rmspace - Remove space after Host: header in HTTP
 --http_host_space - Add space after Host: header in HTTP
 --http_domain_cmix - Mix case in HTTP domain
+--split_record_sni - Split TLS record at SNI middle in ClientHello 
 
 --synack - Wraps each packet into fake SYN and ACK.
   Those packets will be automatically dropped by server.
