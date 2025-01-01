@@ -3,13 +3,15 @@
 
 High level deep packet inspection bypass utility with multiple strategies that can be used together.
 
-This project uses SOCKS5 Proxy to capture packets, but it's not a huge problem, since in Rust you can save TcpSream as raw socket or file descriptor.
+This project uses SOCKS5 Proxy to capture packets, but it's not a huge problem, since in Rust you can save TcpStream as raw socket or file descriptor.
 
 ## Introduction
 
-Blocking websites by IP address had became a bad practice over time. Such limitations can cause non-related websites to be blocked too. As attempts to block telegram in far tike ago showed that blocking websites by IP can lead to consequences and is ineffective — Deep packet inspection had been brought into the work.
+Blocking websites by IP address had became a bad practice over time, since such limitations can cause non-related websites to be blocked too. Deep packet inspection is an obvious solution to that issue, it can be bypassed easier than IP blocking, but it requires creating VPNs that mask the traffic. 
 
-Nowadays, ISPs put devices to complain with the censorship laws in many countries, filter malicious traffic and prevent potential online threats. This tool helps to bypass one of these deep packet inspection usages - Censorship
+Serverless DPI bypasses allow to don't use VPNs.
+
+This tool helps to bypass censorship caused by deep packet inspection.
 
 > Important information will come!
 > If you don’t read it, you will likely seek for configurations done by other people.
@@ -109,7 +111,7 @@ Deep packet inspection will see the stream as following:
 ```
 
 ---------
-### Disordered splitting wit first part as Out-of-band
+### Disordered splitting with first part as Out-of-band
 
 This method is same as Fake via OOB, but first segment is corrupted.
 
@@ -170,6 +172,7 @@ Currently Waterfall is incapable of:
 - Bypassing DPI that perfectly reassembles TCP stream that the server will see. This includes caching proxies that can be used by the client or the ISP. This vulnerability is solved by using QUIC protocol, which Waterfall doesn't support right now because of multiple bugs.
 - Fragment packets on IP level. This leads to UDP bypasses not being possible, therefore Waterfall won't use bypasses for QUIC. In plans to be fixed after bugs will be fixed.
 - **Bug:** Doesn't support UDP. Issue of `crate::socks` module. Should be fixed.
+- Bypass DPI that checks server certificate.
 
 ## Command-line interface
 
@@ -255,3 +258,99 @@ This project requires support of libc or winapi. This means, the project must wo
 - Windows
 
 iOS platform aren't and will never be supported. If you use apple's products, you won't get any blocked site working anyways.
+
+## Development and testing 
+
+Repeat the same step to build this project 
+
+```bash
+cargo build
+```
+
+Tests are done for utility functions and the modules itself. 
+
+```bash
+cargo test
+```
+
+## How to write a proper configuration 
+
+> Configurations are different for each ISP
+> Again, beware of "repackers" that distribute random configs
+
+You must determine what DPI is doing to detect blocked source. 
+
+---------
+Most commonly the reason is ClientHello with SNI extension.
+
+Server name identification (SNI) is a TLS extension that specifies which server name client wants to connect on.
+
+At this moment, Waterfall doesn't offer a way to remove this extension from ClientHello.
+
+You have to manually test on some domain if the packet with SNI of blocked website gets dropped by DPI.
+
+<Insert Rust code that sends ClientHello without SNI>
+<Insert Rust code that sends ClientHello with www.youtube.com SNI>
+
+If so, you need to determine the vulnerability which allows us to prevent DPI from parsing SNI from the ClientHello.
+
+Waterfall offers these DPI exploits, that you can test, and they all have the same argument - Index of splitting
+
+- --split
+- --disorder
+- --fake
+- --oob
+- --disoob
+
+For example, `--oob 3+s`
+
+The arguments has almost same syntax, the only difference is that plus sign is enforced.
+
+Here's the translation table from ByeDPI to Waterfall
+
+| ByeDPI       | Waterfall     |
+|--------------|---------------|
+| --disorder 7 | --disorder 7+ |
+| --split 1+s  | --split 1+s   |
+| --fake hn    | --fake 0+h    |
+
+---------
+
+Given a case, when you're working with HTTP.
+
+DPI will check Host header. Your target is to make DPI fail to parse it in any way.
+
+Waterfall doesn't implement tampering metods at this moment.
+
+You will have to use same attack exploits, as with SNI
+
+For example: `--disorder 1+h`
+
+You can use this code snippet, to watch DPI behaviour on HTTP:
+
+<Insert Rust code that sends HTTP packet on blocked website>
+
+---------
+How to deal with DPI that tries to reassemble packets
+
+If the DPI bypasses doesn't work even while using `--disorder` and `--disoob` methods, you're dealing with DPI that detects splitted packets and tries to reassemble them.
+
+Waterfall offers a special exploit that bypasses this. Fake module is designed for these cases, to make DPI accept wrong packets and think that the reassembling is finished.
+
+The only way to detect this kind of DPI is practice.
+
+Example of fake module: `--fake 1+s`
+
+---------
+How to deal with DPI, that fakes server certificate 
+
+This isn't a common case, because browsers automatically detect MITM attacks.
+
+The only way is to manually decrease socket MSS. Waterfall isn't adapted for DPI that checks the server.
+
+There isn't much you can do with it. Enable TLS 1.3. Server certificate is encrypted in it and mimicked as TLS 1.2 data, also known as wrapped record.
+
+## Useful information for development 
+
+libc socket specification: [https://www.man7.org/linux/man-pages/man2/socket.2.html](https://www.man7.org/linux/man-pages/man2/socket.2.html)
+geneva documentation: [https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf](https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf)
