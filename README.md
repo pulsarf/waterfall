@@ -8,6 +8,7 @@ This project uses SOCKS5 Proxy to capture packets, but it's not a huge problem, 
 ## Introduction
 
 Blocking websites by IP address had became a bad practice over time. Such limitations can cause non-related websites to be blocked too. As attempts to block telegram in far tike ago showed that blocking websites by IP can lead to consequences and is ineffective — Deep packet inspection had been brought into the work.
+
 Nowadays, ISPs put devices to complain with the censorship laws in many countries, filter malicious traffic and prevent potential online threats. This tool helps to bypass one of these deep packet inspection usages - Censorship
 
 > Important information will come!
@@ -24,7 +25,8 @@ How would you implement deep packet inspection? For sure, set up a gateway betwe
 
 This is exactly what Russian or Chinese DPI does. However, this method doesn't account for fragmented packets on both IP and applicated protocol level. Waterfall implements much strategies targeted at exploiting this vulnerability.
 
-1. TCP Stream segmentation.
+---------
+TCP Stream segmentation.
 
 This method has the least drawback on performance, and the least efficiency on practice.
 
@@ -38,7 +40,9 @@ Deep packet inspection will see the stream like this:
 |  [DATA]  |  [DATA1] |
 |----------|----------|
 ```
-2. Data disordering
+
+---------
+Data disordering
 
 This method is a modification of tcp segmentation with an extension which's idea is to corrupt first segment on packet level. 
 As the result, the first segment will be automatically re-sent. 
@@ -59,7 +63,9 @@ Deep packet inspection will see the stream like this:
 |  [DATA - CORRUPTED]  |  [DATA1]  |  [DATA]  |
 |----------|-----------|-----------|----------|
 ```
-3. Sending fake data 
+
+---------
+Sending fake data 
 
 This method is data disordering with an extension that sends a fake data after first segment was sent. If you pass this option multiple times, you will be able to spam data with fakes.
 
@@ -77,11 +83,17 @@ Deep packet inspection will see the stream as follows:
 |  [DATA - CORRUPTED]  |  [FAKE OF DATA] |  [DATA1]  |  [DATA]  |
 |----------|-----------|-----------------|-----------|----------|
 ```
-4. Fake via OOB
+
+---------
+Splitting with Out-of-band data as first part
 
 This method is same as split, but the first data will be send as OOB data, with URG flag being set to 1. 
 
 Since you can send only one byte as out of band, last byte is being manually appended.
+
+The user can choose what byte will be appended, it's recommended to put that byte between SNI for tls and between domain in host header for http.
+
+If this method doesn't work, use disordered version of it, which corrupts the first data, that has URG flag.
 
 So, the normal data will be sent to the server, and the last out of band byte will go by it's special channel.
 
@@ -95,9 +107,15 @@ Deep packet inspection will see the stream as following:
 | OUT OF BAND DATA |  [DATA1]  |
 |------------------|-----------|
 ```
-5. Disordered fake via OOB
+
+---------
+Disordered splitting wit first part as Out-of-band
 
 This method is same as Fake via OOB, but first segment is corrupted.
+
+First segment is also sent as Out-of-band data, which means it will have URG flag set to 1.
+
+In this segment, the last byte will be sent via different channel, and Waterfall automatically selects it from user input or default settings.
 
 DPI will receive streamed bytes as denoted:
 ```
@@ -124,13 +142,15 @@ Repeating again even simpler: If you pass multiple strategies, the first one wil
 
 More examples on how the program behaviour differs at different parameters:
 
-- --fake 1+s --disorder 10+s
+----------
+--fake 1+s --disorder 10+s
 ```
 |--------------------|---------------|---------------------|----------------|
 |  [DATA CORRUPTED]  |  [DATA FAKE]  |  [DATA1 CORRUPTED]  |  [DATA2 REAL]  |
 |--------------------|---------------|---------------------|----------------|
 ```
 
+----------
 --disoob 5+s --split 1+s --fake 1+s
 
 Warning: this is a very complex case. The SNI will not likely by in the second part of the segment - therefore 1+s will have the same effect as 1+, because "s" will have usize index of 0.
