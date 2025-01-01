@@ -1,4 +1,5 @@
 use crate::core;
+use crate::desync::utils::utils;
 
 pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
@@ -30,6 +31,27 @@ pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
         data[iter + 6] = b.as_bytes()[0];
       }
     }
+  }
+
+  data
+}
+
+pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
+  let conf = core::parse_args();
+
+  if conf.split_record_sni && data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
+    let (sni_start, sni_end) = utils::parse_sni_index(data.clone());
+    let point: usize = (4 + sni_start).try_into().unwrap();
+
+    data[3] = 0;
+    data[4] = sni_start as u8;
+
+    data.insert(point, 0x16);
+    data.insert(point, 0x03);
+    data.insert(point, 0x01);
+    
+    data.insert(point, 0);
+    data.insert(point, ((data.len() as u32) - sni_start).try_into().unwrap()); 
   }
 
   data

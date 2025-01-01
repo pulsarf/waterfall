@@ -85,6 +85,7 @@ pub struct AuxConfig {
   pub http_host_rmspace: bool,
   pub http_host_space: bool,
   pub http_domain_cmix: bool,
+  pub split_record_sni: bool,
 
   pub synack: bool,
   pub disorder_packet_ttl: u8,
@@ -125,6 +126,7 @@ pub fn parse_args() -> AuxConfig {
     http_host_rmspace: false,
     http_host_space: false,
     http_domain_cmix: false,
+    split_record_sni: false,
     
     strategies: vec![]
   };
@@ -181,6 +183,9 @@ pub fn parse_args() -> AuxConfig {
       },
       "--http_host_space" => {
         config.http_host_space = true;
+      },
+      "--split_record_sni" => {
+        config.split_record_sni = true;
       },
       "--fake_packet_host" => {
         offset += 1 as usize;

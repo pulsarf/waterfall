@@ -24,8 +24,9 @@ use std::net::TcpStream;
 use std::io::Write;
 
 fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
-  let mod_data = tamper::edit_http(data.to_vec());
-
+  let mod_data1 = tamper::edit_tls(data.to_vec());
+  let mod_data = tamper::edit_http(mod_data1);
+  
   let mut data = &mod_data.as_slice();
 
   let mut current_data = data.to_vec();
