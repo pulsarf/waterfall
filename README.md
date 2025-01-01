@@ -36,7 +36,10 @@ The idea comes from reversing Nagle's alghoritm. If Nagle's Alghoritm merges seg
 
 This method will not work if the DPI tries to recover applicated protocol packet.
 
+Stream segmentation is the first ever way you must try, and if it works, consider using it further.
+
 Deep packet inspection will see the stream like this:
+
 ```
 |----------|----------|
 |  [DATA]  |  [DATA1] |
@@ -47,9 +50,12 @@ Deep packet inspection will see the stream like this:
 ### Data disordering
 
 This method is a modification of tcp segmentation with an extension which's idea is to corrupt first segment on packet level. 
+
 As the result, the first segment will be automatically re-sent. 
 
-This method is way harder to be set up, since you'll have to configure TTL/Hop-by-hop options for packet that will be re-sent.
+This method is a bit harder to be set up, since you'll have to configure TTL/Hop-by-hop options for packet that will be re-sent.
+
+Based on different systems and routers, the first packet may not be resent.
 
 You'll have to configure --disorder_packet_ttl parameter to make it work.
 
@@ -69,7 +75,11 @@ Deep packet inspection will see the stream like this:
 ---------
 ### Sending fake data 
 
-This method is data disordering with an extension that sends a fake data after first segment was sent. If you pass this option multiple times, you will be able to spam data with fakes.
+This method is data disordering with an extension that sends a fake data after first segment was sent. 
+
+If the DPI perfectly reassembles the traffic, this method will be your only option.
+
+If you pass this option multiple times, you will be able to spam data with fakes.
 
 This option is really hard to use, but it has highest efficiency on practice.
 
@@ -80,6 +90,7 @@ The --fake_ttlc variation sends corrupted UDP datagram or writes corrupted TCP d
 The --fake variation simulates IP fragmentation and sends fake data via raw socket.
 
 Deep packet inspection will see the stream as follows:
+
 ```
 |----------|-----------|-----------------|-----------|----------|
 |  [DATA - CORRUPTED]  |  [FAKE OF DATA] |  [DATA1]  |  [DATA]  |
@@ -355,7 +366,34 @@ Dealing with DPI that both hijacks certificates and reassembles packets
 
 The only way is tampering the traffic. It could be modifying tls records and Host headers in packets.
 
-Tampering methods aren't currently implemented in Waterfall.
+## Tampering attacks
+
+> Conceptual paragraph incoming!
+> Tampering attacks aren't implemented yet!
+
+The idea of these attacks is modifying data in that way, DPI will fail to parse it.
+
+--------
+
+### HTTP Attacks
+
+- 'Host' case mixer.
+  Changes the case write of host HTTP header.
+- Host domain case mixer.
+- Host EOL
+- Space after 'Host:'
+- Space after method
+- EOL after method
+- Mixed case for a list of headers
+
+---------
+
+### TLS Attacks
+
+- Remove SNI
+- Split TLS Record
+
+---------
 
 ## Useful information for development 
 
