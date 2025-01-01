@@ -350,7 +350,139 @@ The only way is to manually decrease socket MSS. Waterfall isn't adapted for DPI
 
 There isn't much you can do with it. Enable TLS 1.3. Server certificate is encrypted in it and mimicked as TLS 1.2 data, also known as wrapped record.
 
+------------
+Dealing with DPI that both hijacks certificates and reassembles packets
+
+The only way is tampering the traffic. It could be modifying tls records and Host headers in packets.
+
+Tampering methods aren't currently implemented in Waterfall.
+
 ## Useful information for development 
 
+---------
+### Literature that developers must know
+
 libc socket specification: [https://www.man7.org/linux/man-pages/man2/socket.2.html](https://www.man7.org/linux/man-pages/man2/socket.2.html)
+
 geneva documentation: [https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf](https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf)
+
+---------
+### Waterfall internal API documentation 
+
+#### waterfall::core::Strategy
+
+public fields:
+  pub method: Strategies,
+  pub base_index: usize,
+  pub add_sni: bool,
+  pub add_host: bool
+
+public methods:
+  `pub fn from(first: String, second: String) -> Strategy `
+
+-------------
+
+#### waterfall::core::parse_args
+
+`pub fn parse_args() -> waterfall::core::AuxConfig`
+
+Parses CLI arguments passed by the user
+
+-------------
+
+#### waterfall::core::get_help_text
+
+`pub fn get_help_text() -> String`
+
+Returns help text.
+
+-------------
+
+#### waterfall::drop::send
+
+`pub fn send(mut socket: &TcpStream, data: Vec<u8>) -> Result<(), std::io::Error>`
+
+Sends TCP data with extremely low TTL. The packet is supposed to be delivered only to the DPI.
+
+-------------
+
+#### waterfall::drop::raw_send
+
+`pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>)`
+
+Wraps TCP data in another TCP data and sends it. Same functionality as `send`
+
+-------------
+
+#### waterfall::duplicate::set_ttl_raw
+
+`pub fn set_ttl_raw(mut socket: &TcpStream, ttl: u8)`
+
+Sets TTL for a TcpStream using appropriate library for the platform.
+
+--------------
+
+#### waterfall::duplicate::send
+
+`pub fn send(mut socket: &TcpStream, packet: Vec<u8>) -> Result<(), std::io::Error>`
+
+```
+/// Duplicate module sends the packet 2 times as the result.
+/// It's done by setting low TTL/Hop-by-hop header to a low value.
+/// Most routers will send the packet and after it's TTL expires
+/// The packet will be re-sent. Our target is to simulate packet loss
+/// Via it's corruption.
+```
+
+--------------
+
+#### waterfall::net::write_oob
+
+`pub fn write_oob(socket: &TcpStream, oob_char: u8)`
+
+Writes a single OOB char.
+
+-----------
+
+#### waterfall::net::write_oob_multiplex
+
+`pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>)`
+
+Writes a data to the socket, the last byte is automatically sent as out of band.
+
+------------
+
+#### waterfall::parsers::parsers::IpParser
+
+public fields:
+ pub host_raw: Vec<u8>,
+ pub host_unprocessed: Vec<u8>,
+ pub port: u16,
+ pub dest_addr_type: u8
+
+public methods:
+  `pub fn parse(buffer: Vec<u8>) -> IpParser`
+
+host_raw - Host, extracted from the buffer and processed by the parser. 
+  Rather Ipv4 or Ipv6 address.
+host_unprocessed - Host, extracted from buffer.
+  May be ipv4, ipv6 or a domain.
+port - Parsed from buffer port.
+dest_addr_type - Address type given by the client through socks5 proxy.
+  1 => ipv4
+  3 => domain
+  4 => ipv6
+
+### parse method
+
+Parses IP related info from socks5 address packet.
+
+------------
+
+#### waterfall::socks::socks5_proxy
+
+`pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static)`
+
+Processes TcpStream as socks5 proxy, when client sends a message, client_hook callback is called.
+
+
