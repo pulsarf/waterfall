@@ -26,7 +26,7 @@ How would you implement deep packet inspection? For sure, set up a gateway betwe
 This is exactly what Russian or Chinese DPI does. However, this method doesn't account for fragmented packets on both IP and applicated protocol level. Waterfall implements much strategies targeted at exploiting this vulnerability.
 
 ---------
-TCP Stream segmentation.
+### TCP Stream segmentation.
 
 This method has the least drawback on performance, and the least efficiency on practice.
 
@@ -42,7 +42,7 @@ Deep packet inspection will see the stream like this:
 ```
 
 ---------
-Data disordering
+### Data disordering
 
 This method is a modification of tcp segmentation with an extension which's idea is to corrupt first segment on packet level. 
 As the result, the first segment will be automatically re-sent. 
@@ -65,7 +65,7 @@ Deep packet inspection will see the stream like this:
 ```
 
 ---------
-Sending fake data 
+### Sending fake data 
 
 This method is data disordering with an extension that sends a fake data after first segment was sent. If you pass this option multiple times, you will be able to spam data with fakes.
 
@@ -85,7 +85,7 @@ Deep packet inspection will see the stream as follows:
 ```
 
 ---------
-Splitting with Out-of-band data as first part
+### Splitting with Out-of-band data as first part
 
 This method is same as split, but the first data will be send as OOB data, with URG flag being set to 1. 
 
@@ -109,7 +109,7 @@ Deep packet inspection will see the stream as following:
 ```
 
 ---------
-Disordered splitting wit first part as Out-of-band
+### Disordered splitting wit first part as Out-of-band
 
 This method is same as Fake via OOB, but first segment is corrupted.
 
@@ -143,7 +143,8 @@ Repeating again even simpler: If you pass multiple strategies, the first one wil
 More examples on how the program behaviour differs at different parameters:
 
 ----------
---fake 1+s --disorder 10+s
+### --fake 1+s --disorder 10+s
+
 ```
 |--------------------|---------------|---------------------|----------------|
 |  [DATA CORRUPTED]  |  [DATA FAKE]  |  [DATA1 CORRUPTED]  |  [DATA2 REAL]  |
@@ -151,7 +152,7 @@ More examples on how the program behaviour differs at different parameters:
 ```
 
 ----------
---disoob 5+s --split 1+s --fake 1+s
+### --disoob 5+s --split 1+s --fake 1+s
 
 Warning: this is a very complex case. The SNI will not likely by in the second part of the segment - therefore 1+s will have the same effect as 1+, because "s" will have usize index of 0.
 
