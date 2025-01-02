@@ -1,5 +1,6 @@
 use std::net::Shutdown;
 use std::sync::Arc;
+use std::net::UdpSocket;
 
 use crate::IpParser;
 use crate::core;
@@ -32,8 +33,8 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
 
   // Create a socket connection and pipe to messages receiver 
   // Which is wrapped in other function
-
-  let server_socket = TcpStream::connect(match parsed_data.host_raw.len() {
+ 
+  let sock_addr = match parsed_data.host_raw.len() {
     4 => {
       let mut sl: [u8; 4] = [0, 0, 0, 0];
 
@@ -53,7 +54,45 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       SocketAddr::new(sl.into(), parsed_data.port)
     },
     _ => SocketAddr::new([0, 0, 0, 0].into(), parsed_data.port)
-  });
+  };
+
+  let server_socket = TcpStream::connect(sock_addr);
+
+  if parsed_data.is_udp { 
+    println!("UDP Associate");
+
+    let mut udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap(); 
+    let _ = udp_socket.connect(sock_addr); 
+
+    let mut udp_socket1 = udp_socket.try_clone().unwrap();
+    let mut client1 = client.try_clone().unwrap();
+        
+    thread::spawn(move || { 
+      let mut buf = [0u8; 1024]; 
+      loop { 
+        match udp_socket.recv(&mut buf) { 
+          Ok(size) => { 
+            let _ = client.write_all(&buf[..size]); 
+          }, Err(_) => break 
+        } 
+      } 
+    }); 
+
+    thread::spawn(move || { 
+      let mut buf = [0u8; 1024]; 
+      loop { 
+        match client1.read(&mut buf) { 
+          Ok(size) => { 
+            if size > 0 { 
+              let _ = udp_socket1.send(&buf[..size]); 
+            } else { break } 
+          }, Err(_) => break 
+        } 
+      } 
+    }); 
+
+    return;
+  }
 
   match server_socket {
     Ok(mut socket) => {

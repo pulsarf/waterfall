@@ -109,19 +109,17 @@ fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
       Strategies::DISOOB => { 
         let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data, strategy);
 
-        duplicate::set_ttl_raw(&socket, 1);
-
         if send_data.len() > 1 {
           let mut ax_part: Vec<u8> = send_data[0].clone();
 
           ax_part.push(core::parse_args().out_of_band_charid.into());
 
+          duplicate::set_ttl_raw(&socket, 1);
           net::write_oob_multiplex(&socket, ax_part);
+          duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl);
 
           current_data = send_data[1].clone();
         }
-
-        duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl);
       }
     }
   }
