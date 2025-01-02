@@ -7,7 +7,7 @@ use crate::core;
 use std::{
   io::{Read, Write},
   net::{TcpStream, SocketAddr},
-  thread, time
+  thread
 };
 
 pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static) {
@@ -78,8 +78,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
               } else { break }
             }, Err(_error) => break
           }
-
-          thread::sleep(time::Duration::from_millis(30));
         }
       });
 
@@ -106,8 +104,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
               } else { break }
             }, Err(_error) => break
           }
-
-          thread::sleep(time::Duration::from_millis(30));
         }
       });
     },

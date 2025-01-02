@@ -100,7 +100,7 @@ pub mod utils {
 
         let sni_length: u16 = source[(iter + 5) as usize] as u16;
 
-        return (iter + 6, iter + 8 + sni_length as u32);
+        return (iter + 8, iter + 8 + sni_length as u32);
       }
     }
 
