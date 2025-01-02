@@ -180,10 +180,9 @@ Warning: this is a very complex case. The SNI will not likely by in the second p
 You must consider limitations that currently waterfall has. If you want to contribute at solving these issues, feel free to pull request.
 
 Currently Waterfall is incapable of:
-- Bypassing DPI that perfectly reassembles TCP stream that the server will see. This includes caching proxies that can be used by the client or the ISP. This vulnerability is solved by using QUIC protocol, which Waterfall doesn't support right now because of multiple bugs.
+
 - Fragment packets on IP level. This leads to UDP bypasses not being possible, therefore Waterfall won't use bypasses for QUIC. In plans to be fixed after bugs will be fixed.
-- **Bug:** Doesn't support UDP. Issue of `crate::socks` module. Should be fixed.
-- Bypass DPI that checks server certificate.
+- Bypass DPI that checks server certificate. To solve this issue, migrate to TLS 1.3
 
 ## Command-line interface
 
