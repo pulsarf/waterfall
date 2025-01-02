@@ -12,6 +12,8 @@ use crate::desync::disorder::disorder;
 use crate::desync::fake::fake;
 use crate::desync::oob::oob;
 use crate::desync::disoob::disoob;
+use crate::desync::utils::utils;
+
 use crate::parsers::parsers::IpParser;
 
 use core::Strategies;
@@ -38,6 +40,10 @@ fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
   
   for strategy_raw in core::parse_args().strategies {
     let strategy: Strategy = strategy_raw.data;
+
+    if strategy.add_sni && utils::parse_sni_index(Vec::from(data.clone())) == (0, 0) {
+      continue;
+    }
 
     match strategy.method {
       Strategies::NONE => { },
@@ -116,7 +122,7 @@ fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
 
           duplicate::set_ttl_raw(&socket, 1);
           net::write_oob_multiplex(&socket, ax_part);
-          duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl);
+          duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl.into());
 
           current_data = send_data[1].clone();
         }
