@@ -7,7 +7,8 @@ pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
   for iter in 0..data.len() {
     // Scan for HTTP
 
-    if data[iter] == 72 &&
+    if iter + 4 < data.len() &&
+      data[iter] == 72 &&
       data[iter + 1] == 111 &&
       data[iter + 2] == 115 &&
       data[iter + 3] == 116 &&
@@ -39,7 +40,7 @@ pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
 pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
 
-  if /*conf.split_record_sni &&*/ data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
+  if conf.split_record_sni && data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
     let (sni_start, sni_end) = utils::parse_sni_index(data.clone());
     
     if sni_start <= 0 || sni_start >= data.len().try_into().unwrap() {
@@ -62,8 +63,6 @@ pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
     data.insert(pointer, 0x03);
     data.insert(pointer, 0x16);
   }
-
-  println!("{:?}", data);
 
   data
 }

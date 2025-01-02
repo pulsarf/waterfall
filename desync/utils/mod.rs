@@ -93,7 +93,7 @@ pub mod utils {
     offset += 2;
 
     for iter in offset..(source.len() as u32) {
-      if iter + 1 > source.len().try_into().unwrap() { break };
+      if iter + 8 > source.len().try_into().unwrap() { break };
 
       if source[iter as usize] == 0x00 && source[(iter + 1) as usize] == 0x00 {
         // We had successfully found SNI offset! :happyhappyhappy_cat:
