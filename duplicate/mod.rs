@@ -10,7 +10,7 @@ use std::io;
 use std::io::Write;
 use crate::core;
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub fn set_ttl_raw(stream: &TcpStream, ttl: u32) -> io::Result<()> {
   use libc;
   use std::os::unix::io::AsRawFd;
@@ -25,9 +25,6 @@ pub fn set_ttl_raw(stream: &TcpStream, ttl: u32) -> io::Result<()> {
       &ttl as *const _ as *const libc::c_void, std::mem::size_of_val(&ttl) as libc::socklen_t);
   };
 
-  if ret4 != 0 && ret6 != 0 {
-    return Err(io::Error::last_os_error());
-  }
   Ok(())
 }
 
