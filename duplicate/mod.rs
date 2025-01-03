@@ -14,7 +14,7 @@ use crate::core;
 pub fn set_ttl_raw(stream: &TcpStream, ttl: u32) -> io::Result<()> {
   use libc;
   use std::os::unix::io::AsRawFd;
-  use libc::{setsockopt, IP_TTL, IPPROTO_IP, IPV6_UNICAST_HOPS, IPPROTO_IPV6};
+  use libc::{IP_TTL, IPPROTO_IP, IPV6_UNICAST_HOPS, IPPROTO_IPV6};
 
   let fd = stream.as_raw_fd();
   
@@ -49,9 +49,9 @@ pub fn set_ttl_raw(stream: &TcpStream, ttl: u32) -> io::Result<()> {
 pub fn send(mut socket: &TcpStream, packet: Vec<u8>) -> Result<(), std::io::Error> {
   let conf: core::AuxConfig = core::parse_args();
 
-  set_ttl_raw(&socket, 1);
-  socket.write_all(&packet.as_slice())?;
-  set_ttl_raw(&socket, conf.default_ttl.into());
+  let _ = set_ttl_raw(&socket, 1);
+  let _ = socket.write_all(&packet.as_slice())?;
+  let _ = set_ttl_raw(&socket, conf.default_ttl.into());
 
   Ok(())
 }

@@ -20,16 +20,13 @@ use core::Strategies;
 use core::Strategy;
 use core::AuxConfig;
 
-use std::thread;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::io::Write;
 
-fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
-  //let mod_data1 = tamper::edit_tls(data.to_vec());
-  //let mod_data = tamper::edit_http(mod_data1);
-  
-  let mut data = data.clone();
+fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
+  let mod_data1 = tamper::edit_tls(data.to_vec());
+  let data = tamper::edit_http(mod_data1);
 
   let mut current_data = data.to_vec();
   let mut fake_active: bool = false;
@@ -62,7 +59,7 @@ fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
         let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
 
         if send_data.len() > 1 {
-          duplicate::send(&socket, send_data[0].clone());
+          let _ = duplicate::send(&socket, send_data[0].clone());
 
           current_data = send_data[1].clone();
         }
@@ -72,29 +69,9 @@ fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
         
         if send_data.len() > 1 {
           fake_active = true;
-          socket.write_all(&send_data[0]);
+          let _ = socket.write_all(&send_data[0]);
 
           drop::raw_send(&socket, fake::get_fake_packet(send_data[if core::parse_args().fake_packet_reversed { 0 } else { 1 }].clone()));
-
-          current_data = send_data[1].clone();
-        }
-      },
-      Strategies::DISORDER_TTL_CORRUPT => {
-        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
-
-        if send_data.len() > 1 {
-          duplicate::send(&socket, send_data[0].clone());
-
-          current_data = send_data[1].clone();
-        }
-      },
-      Strategies::FAKE_TTL_CORRUPT => {
-        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
-
-        if send_data.len() > 1 {
-          fake_active = true;
-          duplicate::send(&socket, send_data[0].clone());
-          drop::raw_send(&socket, fake::get_fake_packet(send_data[0].clone()));
 
           current_data = send_data[1].clone();
         }
@@ -120,9 +97,9 @@ fn client_hook(mut socket: &TcpStream, mut data: &[u8]) -> Vec<u8> {
 
           ax_part.push(core::parse_args().out_of_band_charid.into());
 
-          duplicate::set_ttl_raw(&socket, 1);
+          let _ = duplicate::set_ttl_raw(&socket, 1);
           net::write_oob_multiplex(&socket, ax_part);
-          duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl.into());
+          let _ = duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl.into());
 
           current_data = send_data[1].clone();
         }
@@ -158,7 +135,7 @@ Configuration: {:#?}", config);
   for stream in listener.incoming() {
     match stream {
       Ok(mut client) => socks::socks5_proxy(&mut client, client_hook),
-      Err(error) => { }
+      Err(_error) => { }
     };
   }
 }

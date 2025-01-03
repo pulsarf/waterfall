@@ -4,8 +4,6 @@ use std::env;
 pub enum Strategies {
   NONE,
   SPLIT,
-  DISORDER_TTL_CORRUPT,
-  FAKE_TTL_CORRUPT,
   DISORDER,
   FAKE,
   OOB,
@@ -55,8 +53,6 @@ impl Strategy {
       "--split" => Strategies::SPLIT,
       "--disorder" => Strategies::DISORDER,
       "--fake" => Strategies::FAKE,
-      "--disorder_ttlc" => Strategies::DISORDER_TTL_CORRUPT,
-      "--fake_ttlc" => Strategies::FAKE_TTL_CORRUPT,
       "--oob" => Strategies::OOB,
       "--disoob" => Strategies::DISOOB,
       _ => Strategies::NONE
@@ -285,7 +281,7 @@ pub fn parse_args() -> AuxConfig {
           data: Strategy::from(String::from("--disoob"), args[offset].clone())
         });
       },
-      e => { }
+      _e => { }
     }
 
     offset += 1 as usize;

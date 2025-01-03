@@ -34,7 +34,7 @@ pub mod parsers {
           let domain_slice = domain_str.to_socket_addrs();
 
           match domain_slice {
-            Ok(ref dom) => {
+            Ok(_) => {
               let ip_buffer: Vec<u8> = match domain_slice.unwrap().next().unwrap().ip() {
                 IpAddr::V4(ip) => ip.octets().to_vec(),
                 IpAddr::V6(ip) => ip.octets().to_vec(),

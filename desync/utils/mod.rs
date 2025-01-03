@@ -1,14 +1,4 @@
 pub mod utils {
-  pub fn aob_scan(target: Vec<u8>, source: Vec<u8>) -> usize {
-    for (position, window) in source.windows(target.len()).enumerate() {
-      if window == target {
-        return position;
-      }
-    }
-
-    return usize::MIN;
-  }
-
   pub fn slice_packet(source: Vec<u8>, index: u64) -> Vec<Vec<u8>> {
     let mut current_index: u64 = 0;
 
@@ -26,43 +16,6 @@ pub mod utils {
     }
 
     vec![beta, alpha]
-  }
-
-  // This is the laziest solution ever possible, but it works at least.
-  // Assuming SNI size is less than u8
-  pub fn parse_sni(source: Vec<u8>) -> String {
-    let mut sni: String = String::from("");
-
-    'label: for iter in 0..source.len() {
-      if iter + 8 > source.len() {
-        break 'label;
-      }
-
-      if source[iter] != 0 || source[iter + 1] != 0 {
-        continue;
-      }
-
-      if ((source[iter + 3] as i8) - (source[iter + 5] as i8)).abs() != 2 {
-        continue;
-      }
-
-      let hostname_size: usize = (((source[iter + 4] as u32) << 8) as u32 | (source[iter + 5] as u32)) as usize;
-
-      for jter in (iter + 6)..(6 + iter + hostname_size) {
-        if jter > source.len() {
-          break;
-        }
-
-        match std::str::from_utf8(&[source[jter]]) {
-          Ok(ch) => sni += &ch,
-          Err(_) => continue 'label
-        }
-      }
-
-      return sni;
-    }
-
-    sni
   }
 
   pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {

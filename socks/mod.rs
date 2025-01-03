@@ -1,4 +1,3 @@
-use std::net::Shutdown;
 use std::sync::Arc;
 use std::net::UdpSocket;
 
@@ -16,12 +15,12 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
 
   let mut buffer = [0 as u8; 128];
 
-  client.set_nodelay(true);
-  client.read(&mut buffer);
-  client.write_all(&[5, 0]);
-  client.read(&mut buffer);
+  let _ = client.set_nodelay(true);
+  let _ = client.read(&mut buffer);
+  let _ = client.write_all(&[5, 0]);
+  let _ = client.read(&mut buffer);
   
-  let mut parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
+  let parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
   let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
 
   if parsed_data.dest_addr_type == 3 {
@@ -61,10 +60,10 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
   if parsed_data.is_udp { 
     println!("UDP Associate");
 
-    let mut udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap(); 
+    let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap(); 
     let _ = udp_socket.connect(sock_addr); 
 
-    let mut udp_socket1 = udp_socket.try_clone().unwrap();
+    let udp_socket1 = udp_socket.try_clone().unwrap();
     let mut client1 = client.try_clone().unwrap();
         
     thread::spawn(move || { 

@@ -41,7 +41,7 @@ pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
 
   if conf.split_record_sni && data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
-    let (sni_start, sni_end) = utils::parse_sni_index(data.clone());
+    let (sni_start, _sni_end) = utils::parse_sni_index(data.clone());
     
     if sni_start <= 0 || sni_start >= data.len().try_into().unwrap() {
       return data;

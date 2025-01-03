@@ -1,18 +1,7 @@
 use std::net::TcpStream;
-use std::io::Write;
 use crate::core;
 
-pub fn send(mut socket: &TcpStream, data: Vec<u8>) -> Result<(), std::io::Error> {
-  let conf: core::AuxConfig = core::parse_args();
-
-  socket.set_ttl(conf.fake_packet_ttl.into())?;
-  socket.write_all(&data)?;
-  socket.set_ttl(conf.default_ttl.into())?;
-
-  Ok(())
-}
-
-pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>) {
+pub fn raw_send(socket: &TcpStream, data: Vec<u8>) {
   let conf: core::AuxConfig = core::parse_args();
   let _ = socket.set_ttl(conf.fake_packet_ttl.into());
 
@@ -22,9 +11,9 @@ pub fn raw_send(mut socket: &TcpStream, data: Vec<u8>) {
 
   if cfg!(unix) {
     #[cfg(target_os = "linux")]
-    use libc::{c_int, send, MSG_OOB};
+    use libc::{send, MSG_OOB};
     #[cfg(target_os = "linux")]
-    use std::os::unix::io::{AsRawFd, RawFd};
+    use std::os::unix::io::{AsRawFd};
 
     #[cfg(target_os = "linux")]
     let fd = socket.as_raw_fd();
