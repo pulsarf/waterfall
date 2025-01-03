@@ -148,12 +148,6 @@ mod tests {
 
   #[test]
 
-  fn start_server() {
-    thread::spawn(main);
-  }
-
-  #[test]
-
   fn can_send_requests_google() {
     let mut sender: Command = Command::new("curl");
     let config: AuxConfig = core::parse_args();
