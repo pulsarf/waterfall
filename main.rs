@@ -69,8 +69,8 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
         
         if send_data.len() > 1 {
           fake_active = true;
-          let _ = socket.write_all(&send_data[0]);
 
+          let _ = duplicate::send(&socket, send_data[0].clone());
           drop::raw_send(&socket, fake::get_fake_packet(send_data[if core::parse_args().fake_packet_reversed { 0 } else { 1 }].clone()));
 
           current_data = send_data[1].clone();
