@@ -218,13 +218,22 @@ Currently, these options are implemented:
   As the result, it will trick DPI about client and server roles.
   Effective to use with disorder and fake.
 
---split [Offset] - Applies TCP stream segmentation
---disorder [Offset] - Applies TCP stream segmentation, corrupts first part
---fake [Offset] - Applies TCP stream segmentation, corrupts first part and sends a duplicate of it with "yandex.ru" SNI
+--split [Offset] - Applies TCP stream segmentation.
+  If the offset in unapplicable for current case, strategy will be dropped
+  for performance saving reasons.
+--disorder [Offset] - Applies TCP stream segmentation and corrupts first part by settings TTL/Hop-by-hop to 1.
+  The first segment will not reach the server, and client will know about it
+  Only via ACK/SACK. Adds delay equal to ping.
+
+  If the offset in unapplicable for current case, strategy will be dropped
+  for performance saving reasons.
+--fake [Offset] - Applies TCP stream segmentation, corrupts first part and sends a duplicate of it.
+  Applies "disorder" method to the first segment.
+  Use this method if the DPI perfectly reassembles packets.
 --oob [Offset] - Applies TCP stream segmentation.
-  Sends Out-Of-Band byte with value of '213' between these segments.
+  Sends Out-Of-Band byte at the end of first segment.
 --disoob [Offset] - Applies TCP stream segmentation, corrupts first part.
-  Sends Out-Of-Band byte with value of '213' between these segments.
+  Sends Out-Of-Band byte at the end of first segment.
 ```
 
 ## Packets capture
