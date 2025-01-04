@@ -57,14 +57,6 @@ This method is a bit harder to be set up, since you'll have to configure TTL/Hop
 
 Based on different systems and routers, the first packet may not be resent.
 
-You'll have to configure --disorder_packet_ttl parameter to make it work.
-
-Disorder has 2 variations.
-
---disorder will fragment data and send them in reverse order. Use it if you're dealing with UDP or TCP.
-
---disorder_ttlc will segment data and set low TTL for first segment. Use it if you're dealing with TCP.
-
 Deep packet inspection will see the stream like this:
 ```
 |----------|-----------|-----------|----------|
@@ -84,10 +76,6 @@ If you pass this option multiple times, you will be able to spam data with fakes
 This option is really hard to use, but it has highest efficiency on practice.
 
 Your target is to use options like --fake_packet_ttl and --fake_as_oob to make fake packets not to reach the server, but reach DPI.
-
-The --fake_ttlc variation sends corrupted UDP datagram or writes corrupted TCP data.
-
-The --fake variation simulates IP fragmentation and sends fake data via raw socket.
 
 Deep packet inspection will see the stream as follows:
 
@@ -232,10 +220,7 @@ Currently, these options are implemented:
 
 --split [Offset] - Applies TCP stream segmentation
 --disorder [Offset] - Applies TCP stream segmentation, corrupts first part
---disorder_ttlc [Offset] - Applies TCP stream segmentation, corrupts first part by changing it's TTL/Hop-by-hop value
 --fake [Offset] - Applies TCP stream segmentation, corrupts first part and sends a duplicate of it with "yandex.ru" SNI
---fake_ttlc [Offset] - Applies TCP stream segmentation, corrupts first part by changing it's TTL/Hop-by-hop value and sends a duplicate of it with "yandex.ru" SNI, overriden data or fake HTTP preset.
-  If present, otherwise, uses random bytes data with same length.
 --oob [Offset] - Applies TCP stream segmentation.
   Sends Out-Of-Band byte with value of '213' between these segments.
 --disoob [Offset] - Applies TCP stream segmentation, corrupts first part.
