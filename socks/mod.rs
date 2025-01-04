@@ -67,7 +67,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     let mut client1 = client.try_clone().unwrap();
         
     thread::spawn(move || { 
-      let mut buf = [0u8; 1024]; 
+      let mut buf = [0u8; 65535]; 
       loop { 
         match udp_socket.recv(&mut buf) { 
           Ok(size) => { 
@@ -78,7 +78,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     }); 
 
     thread::spawn(move || { 
-      let mut buf = [0u8; 1024]; 
+      let mut buf = [0u8; 65535]; 
       loop { 
         match client1.read(&mut buf) { 
           Ok(size) => { 
@@ -106,7 +106,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       let func = Arc::new(client_hook);
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 1024];
+        let msg_buffer: &mut [u8] = &mut [0u8; 65535];
 
         loop {
           match socket.read(msg_buffer) {
@@ -120,7 +120,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       });
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 1024];
+        let msg_buffer: &mut [u8] = &mut [0u8; 65535];
         let client_hook_fn = Arc::clone(&func);
         let mut hops: u64 = 0;
 
