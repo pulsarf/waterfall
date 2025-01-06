@@ -1,0 +1,39 @@
+name: Waterfall on-release build
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build waterfall
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setting up cross-compilation
+        run: apt-get install mingw-w64 |
+          rustup target add x86_64-pc-windows-gnu
+
+      - name: Build release binary
+        run: cargo build --release |
+          cargo build --release --target x86_64-pc-windows-gnu
+          mv target/release/waterfall waterfall-linux-x86_64
+          mv target/x86_64-pc-windows-gnu/release/waterfall waterfall-win-x86_64
+
+      - name: Upload binary to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            waterfall-linux-x86_64
+            waterfall-win-x86_64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
