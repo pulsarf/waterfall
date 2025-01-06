@@ -36,6 +36,6 @@ jobs:
         with:
           files: |
             waterfall-linux-x86_64
-            waterfall-win-x86_64
+            waterfall-win-x86_64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
