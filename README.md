@@ -1,5 +1,5 @@
 # Waterfall
-> This project is in active development. If you're looking for actually working DPI bypass, refer to [zapret](<https://github.com/bol-van/zapret>) and [byedpi](<https://github.com/hufrea/byedpi>)
+> This project is in active development. If you're looking for actually working DPI bypass, refer to [zapret](<https://github.com/bol-van/zapret>)
 
 High level deep packet inspection bypass utility with multiple strategies that can be used together.
 
