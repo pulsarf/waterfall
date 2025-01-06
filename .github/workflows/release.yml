@@ -28,8 +28,8 @@ jobs:
           cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Prepare binaries to upload
-        run: mv target/release/waterfall waterfall-linux-x86_64 |
-          mv target/x86_64-pc-windows-gnu/release/waterfall waterfall-win-x86_64
+        run: mv ./target/release/waterfall waterfall-linux-x86_64 |
+          mv ./target/x86_64-pc-windows-gnu/release/waterfall waterfall-win-x86_64
 
       - name: Upload binary to release
         uses: softprops/action-gh-release@v2
