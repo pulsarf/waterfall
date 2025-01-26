@@ -7,8 +7,6 @@ This project uses SOCKS5 Proxy to capture packets, but it's not a huge problem, 
 
 ## Introduction
 
-Blocking websites by IP address had became a bad practice over time, since such limitations can cause non-related websites to be blocked too. Deep packet inspection is an obvious solution to that issue, it can be bypassed easier than IP blocking, but it requires creating VPNs that mask the traffic. 
-
 Serverless DPI bypasses allow to don't use VPNs.
 
 This tool helps to bypass censorship caused by deep packet inspection.
