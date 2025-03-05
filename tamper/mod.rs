@@ -37,33 +37,37 @@ pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
   data
 }
 
+
+fn as_record(mut data: Vec<u8>) -> Vec<u8> {
+  let data_length: [u8; 2] = (data.len() as u16).to_be_bytes();
+  let mut record: Vec<u8> = vec![0x16u8, 0x03u8, 0x01u8];
+
+  record.extend(data_length);
+  record.extend(data);
+
+  return record;
+}
+
 pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
 
   if conf.split_record_sni && data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
     let (sni_start, _sni_end) = utils::parse_sni_index(data.clone());
-    
-    if sni_start <= 0 || sni_start >= data.len().try_into().unwrap() {
+                                                                                                                                                                                                                                                  if sni_start <= 0 || sni_start >= data.len().try_into().unwrap() {
       return data;
     }
 
-    let reclen: [u8; 2] = ((sni_start + 2) as u16).to_be_bytes();
-    
-    data[3] = reclen[0];
-    data[4] = reclen[1];
+    data.drain(0..5);
 
-    let pointer: usize = (2 + 4 + sni_start).try_into().unwrap();
-    let remaining = (data.len() as u16) - ((sni_start as u16) + 2 + 4 + 3);
-    let bytes: [u8; 2] = remaining.to_le_bytes();
+    let records: Vec<Vec<u8>> = data.chunks(sni_start as usize).map(|s| Vec::from(s)).collect();
 
-    data.insert(pointer, bytes[0]);
-    data.insert(pointer, bytes[1]);
+    let mut record1: Vec<u8> = as_record(records[0].clone());
+    let record2: Vec<u8> = as_record(records[1].clone());
+    println!("Record1: {:?} \n Record2: {:?}", &record1, &record2);
+    record1.extend(record2);
 
-    data.insert(pointer, 0x01);
-    data.insert(pointer, 0x03);
-    data.insert(pointer, 0x16);
+    return record1;
   }
 
   data
 }
-
