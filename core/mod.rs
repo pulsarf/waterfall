@@ -13,7 +13,7 @@ pub enum Strategies {
 #[derive(Debug, Clone)]
 pub struct Strategy {
   pub method: Strategies,
-  pub base_index: usize,
+  pub base_index: i64,
   pub add_sni: bool,
   pub add_host: bool
 }
@@ -41,9 +41,23 @@ impl Strategy {
         .map(|str| String::from(str))
         .collect();
       
-      match parts[0].parse::<u64>() {
+      match parts[0].parse::<i64>() {
         Ok(res) => {
-          strategy.base_index = res as usize;
+          strategy.base_index = res;
+        },
+        Err(_) => { }
+      };
+    };
+
+    if second.contains("-") {
+      let parts: Vec<String> = second
+        .split("-")
+        .map(|str| String::from(str))
+        .collect();
+      
+      match parts[0].parse::<i64>() {
+        Ok(res) => {
+          strategy.base_index = -res;
         },
         Err(_) => { }
       };

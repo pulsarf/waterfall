@@ -1,0 +1,2 @@
+start "" target/release/waterfall.exe --bind_port 10000 --disorder 1+s --oob 3+ --split 2+ --disorder 3+ --split 1+ --split 4+ --packet_hop 2
+start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --proxy-server="socks5://127.0.0.1:10000"
