@@ -234,6 +234,19 @@ Currently, these options are implemented:
   Sends Out-Of-Band byte at the end of first segment.
 ```
 
+## Offsets
+
+Offset is a argument type for waterfall modules.
+
+It consists out of 3 parts. Index (i64), sign (sum or substract from base index) and base index.
+
+Examples:
+
+- `1-s`
+- `1-h`
+- `1+s`
+- `1+h`
+
 ## Packets capture
 
 Packets are captured via SOCKS5 proxy. Waterfall is a backend that modifies the traffic, and to run it on any platform, you'll have to use a SOCKS5 client.
@@ -321,6 +334,7 @@ Here's the translation table from ByeDPI to Waterfall
 | --disorder 7 | --disorder 7+ |
 | --split 1+s  | --split 1+s   |
 | --fake hn    | --fake 0+h    |
+| --split -1+s | --split 1-s   |
 
 ---------
 
