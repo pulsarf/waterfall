@@ -91,6 +91,11 @@ pub struct AuxConfig {
   pub fake_packet_double: bool,
   pub fake_packet_reversed: bool,
 
+  pub disable_sack: bool,
+
+  pub fake_clienthello: bool,
+  pub fake_clienthello_sni: String,
+
   pub http_host_cmix: bool,
   pub http_host_rmspace: bool,
   pub http_host_space: bool,
@@ -129,6 +134,7 @@ pub fn parse_args() -> AuxConfig {
       data: vec![0u8]
     },
     disorder_packet_ttl: 8,
+    disable_sack: false,
     default_ttl: 128,
     out_of_band_charid: 213u8,
     packet_hop: std::u64::MAX,
@@ -137,6 +143,8 @@ pub fn parse_args() -> AuxConfig {
     http_host_space: false,
     http_domain_cmix: false,
     split_record_sni: false,
+    fake_clienthello: false,
+    fake_clienthello_sni: String::from("yandex.ru"),
     
     strategies: vec![]
   };
@@ -170,6 +178,17 @@ pub fn parse_args() -> AuxConfig {
         offset += 1 as usize;
 
         config.fake_packet_ttl = args[offset].parse::<u8>().expect("FATAL: fake_packet_ttl argument exceeds uint8 limit.");
+      },
+      "--send_fake_clienthello" => {
+        config.fake_clienthello = true;
+      },
+      "--disable_sack" => {
+        config.disable_sack = true;
+      },
+      "--fc_sni" => {
+        offset += 1 as usize;
+
+        config.fake_clienthello_sni = args[offset].clone();
       },
       "--fake_packet_sni" => {
         offset += 1 as usize;

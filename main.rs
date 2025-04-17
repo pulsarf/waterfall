@@ -34,6 +34,27 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   if core::parse_args().synack {
     drop::raw_send(&socket, vec![255, 255, 0, 122, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]);
   }
+
+  if utils::parse_sni_index(Vec::from(data.clone())) != (0, 0) &&
+    core::parse_args().fake_clienthello {
+    drop::raw_send(&socket, [&[0x16, 0x03, 0x01, 0x00, 0xa5,
+        0x01, 0x00, 0x00, 0xa1, 0x03, 0x03, 
+
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+        0x00,
+
+        0x00, 2, 0x00, 0x0a,
+
+        0x01, 0x00,
+
+        0x00, 16, 
+
+        0x00, 0x00, 0x00, 0x28], core::parse_args().fake_clienthello_sni.as_bytes()].concat());
+  }
   
   for strategy_raw in core::parse_args().strategies {
     let strategy: Strategy = strategy_raw.data;
@@ -113,6 +134,10 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
 
   if core::parse_args().fake_packet_reversed && fake_active {
     drop::raw_send(&socket, fake::get_fake_packet(current_data.clone()));
+  }
+
+  if core::parse_args().disable_sack {
+    net::disable_sack(&socket);
   }
 
   current_data

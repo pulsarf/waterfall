@@ -51,8 +51,6 @@ fn as_record(data: Vec<u8>) -> Vec<u8> {
 pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
 
-  println!("[  Waterfall  ] Splitting record with length of {}", data.len());
-
   if conf.split_record_sni && data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
     let (sni_start, _sni_end) = utils::parse_sni_index(data.clone());
 
