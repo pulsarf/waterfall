@@ -203,6 +203,7 @@ Currently, these options are implemented:
 --fake_packet_reversed - Sends fake packets in reversed order.
 --fake_packet_double - Sends two fake packets instead of one.
 --packet_hop [U8] - Applies all traffic modifications only to specific number of packets.
+--split_record_sni - Tampers all TLS segments with SNI, creating a new record in between of the SNI.
 
 --http_host_cmix - Mix Host header case in HTTP
 --http_host_rmspace - Remove space after Host: header in HTTP
@@ -326,6 +327,10 @@ Waterfall offers these DPI exploits, that you can test, and they all have the sa
 For example, `--oob 3+s`
 
 The arguments has almost same syntax, the only difference is that plus sign is enforced.
+
+## Transition from other programs
+
+Most of command syntax was derived from byedpi for simplicity, as a drop-in replacement
 
 Here's the translation table from ByeDPI to Waterfall
 
