@@ -1,5 +1,6 @@
 pub mod parsers {
   use std::net::{ToSocketAddrs, IpAddr};
+  use crate::utils::doh_resolver;
 
   #[derive(Debug, Clone)]
   pub struct IpParser {
@@ -28,35 +29,42 @@ pub mod parsers {
         3 => {
           let domain_length = buffer[4] as usize;
           let domain = &buffer[5..5 + domain_length];
-          let domain_str = std::str::from_utf8(domain).unwrap().to_owned() + ":443";
+          let domain_str = std::str::from_utf8(domain).unwrap().to_string();
 
           let domain_slice = domain_str.to_socket_addrs();
 
-          match domain_slice {
-            Ok(_) => {
-              let ip_buffer: Vec<u8> = match domain_slice.unwrap().next().unwrap().ip() {
-                IpAddr::V4(ip) => ip.octets().to_vec(),
-                IpAddr::V6(ip) => ip.octets().to_vec(),
-              };
+          match doh_resolver(domain_str.clone()) {
+              Ok(ip) => {
+                  if let Ok(ip_addr) = ip.parse::<IpAddr>() {
+                      let ip_buffer = match ip_addr {
+                          IpAddr::V4(ip) => ip.octets().to_vec(),
+                          IpAddr::V6(ip) => ip.octets().to_vec(),
+                      };
 
-              IpParser {
-                dest_addr_type,
-                host_raw: ip_buffer,
-                host_unprocessed: domain.to_vec(),
-                port: 443,
-                is_udp
+                      return IpParser {
+                          dest_addr_type,
+                          host_raw: ip_buffer,
+                          host_unprocessed: domain.to_vec(),
+                          port: 443,
+                          is_udp
+                      };
+                  } else {
+                      return IpParser {
+                          dest_addr_type, host_raw: vec![0, 0, 0, 0],
+                          host_unprocessed: domain.to_vec(),
+                          port: 443,
+                          is_udp
+                      };
+                  };
               }
-            }, Err(_) => { 
-              println!("[FATAL] Failed to parse domain {:?}", domain_str);
-
-              IpParser {
-                dest_addr_type,
-                host_raw: vec![0, 0, 0, 0],
-                host_unprocessed: domain.to_vec(),
-                port: 443,
-                is_udp
+              Err(e) => {
+                  return IpParser {
+                      dest_addr_type, host_raw: vec![0, 0, 0, 0],
+                      host_unprocessed: domain.to_vec(),
+                      port: 443,
+                      is_udp
+                  }
               }
-            }
           }
         },
         _ => {

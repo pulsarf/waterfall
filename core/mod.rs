@@ -90,6 +90,7 @@ pub struct AuxConfig {
   pub fake_packet_override_data: DataOverride::<Vec<u8>>,
   pub fake_packet_double: bool,
   pub fake_packet_reversed: bool,
+  pub fake_packet_random: bool,
 
   pub disable_sack: bool,
 
@@ -102,7 +103,6 @@ pub struct AuxConfig {
   pub http_domain_cmix: bool,
   pub split_record_sni: bool,
 
-  pub synack: bool,
   pub disorder_packet_ttl: u8,
   pub default_ttl: u8,
   pub out_of_band_charid: u8,
@@ -128,7 +128,7 @@ pub fn parse_args() -> AuxConfig {
     fake_as_oob: false,
     fake_packet_double: false,
     fake_packet_reversed: false,
-    synack: false,
+    fake_packet_random: false,
     fake_packet_override_data: DataOverride::<Vec<u8>> {
       active: false,
       data: vec![0u8]
@@ -239,8 +239,8 @@ pub fn parse_args() -> AuxConfig {
 
         config.packet_hop = args[offset].parse::<u64>().expect("FATAL: packet_hop argument exceeds uint64 limit.");
       },
-      "--synack" => {
-        config.synack = true;
+      "--fake_packet_random" => {
+        config.fake_packet_random = true;
       },
       "--fake_packet_double" => {
         config.fake_packet_double = true;
