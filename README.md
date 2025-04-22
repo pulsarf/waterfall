@@ -42,7 +42,6 @@ This tool helps to bypass censorship caused by deep packet inspection
 --whitelist_sni [DOMAIN] - Add certain SNI domain in whitelist. Whitelist is disabled by default when not specified.
 
 --packet_hop [U8] - Applies all traffic modifications only to specific number of packets.
---split_record_sni - Tampers all TLS segments with SNI, creating a new record in between of the SNI.
 
 --http_host_cmix - Mix Host header case in HTTP
 --http_host_rmspace - Remove space after Host: header in HTTP
@@ -64,6 +63,7 @@ This tool helps to bypass censorship caused by deep packet inspection
   Sends Out-Of-Band byte at the end of first segment.
 --disoob [Offset] - Apply TCP stream segmentation, corrupt first part.
   Sends Out-Of-Band byte at the end of first segment.
+--fragtls [Offset] - Fragment TLS headers. See https://upb-syssec.github.io/blog/2023/record-fragmentation/
 ```
 
 ## Offsets
