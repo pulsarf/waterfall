@@ -14,6 +14,7 @@ pub mod parsers {
   impl IpParser {
     pub fn parse(buffer: Vec<u8>) -> IpParser {
       let dest_addr_type: u8 = buffer[3];
+
       let is_udp = buffer[1] == 0x03;
 
       match dest_addr_type {

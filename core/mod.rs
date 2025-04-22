@@ -108,6 +108,9 @@ pub struct AuxConfig {
   pub out_of_band_charid: u8,
   pub packet_hop: u64,
 
+  pub whitelist_sni: bool,
+  pub whitelist_sni_list: Vec<String>,
+
   pub strategies: Vec<DataOverride::<Strategy>>
 }
 
@@ -145,6 +148,9 @@ pub fn parse_args() -> AuxConfig {
     split_record_sni: false,
     fake_clienthello: false,
     fake_clienthello_sni: String::from("yandex.ru"),
+
+    whitelist_sni: false,
+    whitelist_sni_list: vec![],
     
     strategies: vec![]
   };
@@ -314,6 +320,12 @@ pub fn parse_args() -> AuxConfig {
           data: Strategy::from(String::from("--disoob"), args[offset].clone())
         });
       },
+      "--whitelist_sni" => {
+        offset += 1 as usize;
+
+        config.whitelist_sni = true;
+        config.whitelist_sni_list.push(args[offset].clone());
+      }
       _e => { }
     }
 

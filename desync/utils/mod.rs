@@ -58,36 +58,28 @@ pub mod utils {
       (0..len).map(|_| rand.next_rand()).collect()
   }
 
+  pub fn is_english(byte: u8) -> bool {
+      byte >= 97 && byte <= 123
+  }
+
   pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {
-    if source[0] != 0x16 { return (0, 0) };
-    if source.len() < 48 { return (0, 0) };
+      if source.is_empty() || source[0] != 0x16 { return (0, 0) };
+      if source.len() < 48 { return (0, 0) };
+      if source.len() <= 5 || source[5] != 0x01 { return (0, 0) };
 
-    if source[5] != 0x01 {
-      return (0, 0);
-    }
- 
-    let mut offset: u32 = 43;
-
-    offset += source[offset as usize] as u32;
-
-    let cipher_suites_length: u16 = source[(offset + 1) as usize] as u16;
-
-    offset += cipher_suites_length as u32;
-
-    offset += source[offset as usize] as u32;
-    offset += 2;
-
-    for iter in offset..(source.len() as u32) {
-      if iter + 8 > source.len().try_into().unwrap() { break };
-
-      if source[iter as usize] == 0x00 && source[(iter + 1) as usize] == 0x00 {
-        let sni_length: u16 = source[(iter + 5) as usize] as u16;
-
-        return (iter + 8, iter + 8 + sni_length as u32);
+      for i in 0..source.len().saturating_sub(8) {
+          if source[i] == 0x00 && source[i+1] == 0x00 {
+              let len = ((source[i+5] as u32) << 8) | source[i+6] as u32;
+              let start = i + 8;
+              let end = start + len as usize;
+            
+              if end <= source.len() && len > 0 && len < 256 {
+                  return (start as u32, end as u32);
+              }
+          }
       }
-    }
-
-    (0, 0)
+      
+      (0, 0)
   }
 
   fn get_first_ip(response_data: Vec<u8>) -> Result<String, String> {

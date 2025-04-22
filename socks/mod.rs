@@ -55,8 +55,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     _ => SocketAddr::new([0, 0, 0, 0].into(), parsed_data.port)
   };
 
-  let server_socket = TcpStream::connect(sock_addr);
-
   if parsed_data.is_udp { 
     println!("UDP Associate");
 
@@ -92,6 +90,8 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
 
     return;
   }
+
+  let server_socket = TcpStream::connect(sock_addr);
 
   match server_socket {
     Ok(mut socket) => {
