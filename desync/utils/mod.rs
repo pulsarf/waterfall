@@ -58,10 +58,6 @@ pub mod utils {
       (0..len).map(|_| rand.next_rand()).collect()
   }
 
-  pub fn is_english(byte: u8) -> bool {
-      byte >= 97 && byte <= 123
-  }
-
   pub fn parse_sni_index(source: Vec<u8>) -> (u32, u32) {
       if source.is_empty() || source[0] != 0x16 { return (0, 0) };
       if source.len() < 48 { return (0, 0) };
@@ -74,7 +70,7 @@ pub mod utils {
               let end = start + len as usize;
             
               if end <= source.len() && len > 0 && len < 256 {
-                  return (start as u32, end as u32);
+                  return (start as u32 + 4u32, end as u32);
               }
           }
       }

@@ -25,10 +25,7 @@ use std::net::TcpStream;
 use std::io::Write;
 
 fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
-  let mod_data1 = tamper::edit_tls(data.to_vec());
-  let data = tamper::edit_http(mod_data1);
-
-  let mut current_data = data.to_vec();
+  let mut current_data = tamper::edit_http(data.to_vec());
   let mut fake_active: bool = false;
 
   let sni_data = utils::parse_sni_index(Vec::from(data.clone()));
@@ -42,10 +39,12 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
 
       let sni_slice =  &data[start..end];
 
-      let sni_string: String = String::from_utf8_lossy(sni_slice).to_string();
+      let sni_string: String = String::from_utf8_lossy(sni_slice).to_string(); 
 
       if !core::parse_args().whitelist_sni_list.iter().position(|r|
           sni_string.contains(&*r)).is_none() {
+          println!("[W] Apply fooling on whitelisted domain {}", &sni_string);
+
           can_run = true;
       }
   }
@@ -142,6 +141,15 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
           let _ = duplicate::set_ttl_raw(&socket, core::parse_args().default_ttl.into());
 
           current_data = send_data[1].clone();
+        }
+      },
+      Strategies::FRAGTLS => {
+        if strategy.add_sni {
+            let (sni_start, _sni_end) = utils::parse_sni_index(current_data.clone());
+
+            current_data = tamper::edit_tls(current_data, (strategy.base_index + (sni_start as i64)).try_into().unwrap());
+        } else {
+            current_data = tamper::edit_tls(current_data, strategy.base_index.try_into().unwrap());
         }
       }
     }

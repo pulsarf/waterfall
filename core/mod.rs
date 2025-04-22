@@ -7,7 +7,8 @@ pub enum Strategies {
   DISORDER,
   FAKE,
   OOB,
-  DISOOB
+  DISOOB,
+  FRAGTLS
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +70,7 @@ impl Strategy {
       "--fake" => Strategies::FAKE,
       "--oob" => Strategies::OOB,
       "--disoob" => Strategies::DISOOB,
+      "--fragtls" => Strategies::FRAGTLS,
       _ => Strategies::NONE
     };
 
@@ -219,8 +221,15 @@ pub fn parse_args() -> AuxConfig {
       "--http_host_space" => {
         config.http_host_space = true;
       },
-      "--split_record_sni" => {
+      "--fragtls" => {
         config.split_record_sni = true;
+
+        offset += 1 as usize;
+
+        config.strategies.push(DataOverride::<Strategy> {
+          active: true,
+          data: Strategy::from(String::from("--fragtls"), args[offset].clone())
+        });
       },
       "--fake_packet_host" => {
         offset += 1 as usize;
