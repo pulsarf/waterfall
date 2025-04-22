@@ -32,7 +32,33 @@ pub mod parsers {
           let domain = &buffer[5..5 + domain_length];
           let domain_str = std::str::from_utf8(domain).unwrap().to_string();
 
+          if domain.len() < 4 {
+              return IpParser {
+                  dest_addr_type, host_raw: vec![0, 0, 0, 0],
+                  host_unprocessed: domain.to_vec(),
+                  port: 443,
+                  is_udp
+              };
+          }
+
           let domain_slice = domain_str.to_socket_addrs();
+
+          let domain_str_at = domain_str.parse::<IpAddr>();
+
+          if domain_str_at.is_ok() {
+              let ip_buffer = match domain_str_at.unwrap() {
+                  IpAddr::V4(ip) => ip.octets().to_vec(),
+                  IpAddr::V6(ip) => ip.octets().to_vec(),
+              };
+
+              return IpParser {
+                  dest_addr_type,
+                  host_raw: ip_buffer,
+                  host_unprocessed: domain.to_vec(),
+                  port: 443,
+                  is_udp
+              }
+          }
 
           match doh_resolver(domain_str.clone()) {
               Ok(ip) => {
@@ -62,7 +88,7 @@ pub mod parsers {
                   return IpParser {
                       dest_addr_type, host_raw: vec![0, 0, 0, 0],
                       host_unprocessed: domain.to_vec(),
-                      port: 443,
+                      port: u16::from_be_bytes([buffer[8], buffer[9]]),
                       is_udp
                   }
               }

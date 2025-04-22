@@ -31,7 +31,30 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = data.to_vec();
   let mut fake_active: bool = false;
 
-  if utils::parse_sni_index(Vec::from(data.clone())) != (0, 0) &&
+  let sni_data = utils::parse_sni_index(Vec::from(data.clone()));
+
+  let mut can_run: bool = false;
+
+  if sni_data != (0, 0) && 
+      core::parse_args().whitelist_sni {
+      let start = sni_data.0 as usize;
+      let end = sni_data.1 as usize;
+
+      let sni_slice =  &data[start..end];
+
+      let sni_string: String = String::from_utf8_lossy(sni_slice).to_string();
+
+      if !core::parse_args().whitelist_sni_list.iter().position(|r|
+          sni_string.contains(&*r)).is_none() {
+          can_run = true;
+      }
+  }
+
+  if !can_run {
+      return current_data;
+  }
+
+  if sni_data != (0, 0) &&
     core::parse_args().fake_clienthello {
     drop::raw_send(&socket, [&[0x16, 0x03, 0x01, 0x00, 0xa5,
         0x01, 0x00, 0x00, 0xa1, 0x03, 0x03, 
