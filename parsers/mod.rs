@@ -69,13 +69,16 @@ pub mod parsers {
 
           let domain = &buffer[5..5 + domain_length];
           let port = u16::from_be_bytes([buffer[5 + domain_length], buffer[6 + domain_length]]);
-
+ 
           if let Ok(domain_str) = std::str::from_utf8(domain) {
             if let Ok(ip_addr) = domain_str.parse::<IpAddr>() {
               let ip_buffer = match ip_addr {
                 IpAddr::V4(ip) => ip.octets().to_vec(),
                 IpAddr::V6(ip) => ip.octets().to_vec(),
               };
+
+              println!("[D] Successful resolve for {}:{} -> {:?}", &domain_str, &port, &ip_buffer);
+
               return IpParser {
                 dest_addr_type,
                 host_raw: ip_buffer,
@@ -91,6 +94,9 @@ pub mod parsers {
                   IpAddr::V4(ip) => ip.octets().to_vec(),
                   IpAddr::V6(ip) => ip.octets().to_vec(),
                 };
+
+                println!("[D] Successful resolve for {}:{} -> {:?}", &domain_str, &port, &ip_buffer);
+
                 return IpParser {
                   dest_addr_type,
                   host_raw: ip_buffer,

@@ -81,6 +81,8 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
       continue;
     }
 
+    println!("[F {:?}] Loaded startegy at index {}", &strategy.method, &strategy.base_index);
+
     match strategy.method {
       Strategies::NONE => { },
       Strategies::SPLIT => {
@@ -148,9 +150,13 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
             let (sni_start, _sni_end) = utils::parse_sni_index(current_data.clone());
 
             current_data = tamper::edit_tls(current_data, (strategy.base_index + (sni_start as i64)).try_into().unwrap());
+
+            println!("[T {}] Tampering TLS Record at index {}", current_data.len(), (strategy.base_index + (sni_start as i64)));
         } else {
             current_data = tamper::edit_tls(current_data, strategy.base_index.try_into().unwrap());
-        }
+
+            println!("[T {}] Tampering TLS Record at index {}", current_data.len(), strategy.base_index);
+        } 
       }
     }
   }
