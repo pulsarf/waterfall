@@ -6,6 +6,7 @@ pub enum Strategies {
   SPLIT,
   DISORDER,
   FAKE,
+  FAKE_MD,
   OOB,
   DISOOB,
   FRAGTLS
@@ -65,12 +66,13 @@ impl Strategy {
     };
 
     strategy.method = match first.as_str() {
-      "--split" => Strategies::SPLIT,
-      "--disorder" => Strategies::DISORDER,
-      "--fake" => Strategies::FAKE,
-      "--oob" => Strategies::OOB,
-      "--disoob" => Strategies::DISOOB,
-      "--fragtls" => Strategies::FRAGTLS,
+      "--tcp_split" => Strategies::SPLIT,
+      "--tcp_disorder" => Strategies::DISORDER,
+      "--tcp_fake_disordered" => Strategies::FAKE,
+      "--tcp_fake_insert" => Strategies::FAKE_MD,
+      "--tcp_out_of_band" => Strategies::OOB,
+      "--tcp_out_of_band_disorder" => Strategies::DISOOB,
+      "--tls_record_frag" => Strategies::FRAGTLS,
       _ => Strategies::NONE
     };
 
@@ -273,69 +275,20 @@ pub fn parse_args() -> AuxConfig {
 
         config.out_of_band_charid = args[offset].parse::<u8>().expect("FATAL: out_of_band_charid argument exceeds uint8 limit.");
       },
-      "--split" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--split"), args[offset].clone())
-        });
-      },
-      "--disorder" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--disorder"), args[offset].clone())
-        });
-      },
-      "--disorder_ttlc" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--disorder_ttlc"), args[offset].clone())
-        });
-      },
-      "--fake_ttlc" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--fake_ttlc"), args[offset].clone())
-        });
-      },
-      "--fake" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--fake"), args[offset].clone())
-        });
-      },
-      "--oob" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--oob"), args[offset].clone())
-        });
-      },
-      "--disoob" => {
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--disoob"), args[offset].clone())
-        });
-      },
       "--whitelist_sni" => {
         offset += 1 as usize;
 
         config.whitelist_sni = true;
         config.whitelist_sni_list.push(args[offset].clone());
+      },
+      strategy => {
+          offset += 1 as usize;
+
+          config.strategies.push(DataOverride::<Strategy> {
+            active: true,
+            data: Strategy::from(String::from(strategy), args[offset].clone())
+          });
       }
-      _e => { }
     }
 
     offset += 1 as usize;

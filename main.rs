@@ -77,7 +77,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   for strategy_raw in core::parse_args().strategies {
     let strategy: Strategy = strategy_raw.data;
 
-    if strategy.add_sni && utils::parse_sni_index(Vec::from(data.clone())) == (0, 0) {
+    if strategy.add_sni && sni_data == (0, 0) {
       continue;
     }
 
@@ -86,7 +86,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
     match strategy.method {
       Strategies::NONE => { },
       Strategies::SPLIT => {
-        let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data, strategy);
+        let send_data: Vec<Vec<u8>> = split::get_split_packet(&current_data, strategy, &sni_data);
 
         if send_data.len() > 1 {
           if let Err(_e) = socket.write_all(&send_data[0]) {
@@ -97,7 +97,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISORDER => {
-        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy);
+        let send_data: Vec<Vec<u8>> = disorder::get_split_packet(&current_data, strategy, &sni_data);
 
         if send_data.len() > 1 {
           let _ = duplicate::send(&socket, send_data[0].clone());
@@ -106,7 +106,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::FAKE => {
-        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy);
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy, &sni_data);
         
         if send_data.len() > 1 {
           fake_active = true;
@@ -117,8 +117,21 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
           current_data = send_data[1].clone();
         }
       },
+      Strategies::FAKE_MD => {
+        let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy, &sni_data);
+        
+        if send_data.len() > 1 {
+          fake_active = true;
+
+          let _ = socket.write_all(&send_data[0]);
+
+          drop::raw_send(&socket, fake::get_fake_packet(send_data[if core::parse_args().fake_packet_reversed { 0 } else { 1 }].clone()));
+
+          current_data = send_data[1].clone();
+        }
+      },
       Strategies::OOB => {
-        let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data, strategy);
+        let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data, strategy, &sni_data);
 
         if send_data.len() > 1 {
           let mut ax_part: Vec<u8> = send_data[0].clone();
@@ -131,7 +144,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
         }
       },
       Strategies::DISOOB => { 
-        let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data, strategy);
+        let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data, strategy, &sni_data);
 
         if send_data.len() > 1 {
           let mut ax_part: Vec<u8> = send_data[0].clone();
@@ -147,11 +160,11 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
       },
       Strategies::FRAGTLS => {
         if strategy.add_sni {
-            let (sni_start, _sni_end) = utils::parse_sni_index(current_data.clone());
+            let (sni_start, _sni_end) = &sni_data;
 
-            current_data = tamper::edit_tls(current_data, (strategy.base_index + (sni_start as i64)).try_into().unwrap());
+            current_data = tamper::edit_tls(current_data, (strategy.base_index + (*sni_start as i64)).try_into().unwrap());
 
-            println!("[T {}] Tampering TLS Record at index {}", current_data.len(), (strategy.base_index + (sni_start as i64)));
+            println!("[T {}] Tampering TLS Record at index {}", current_data.len(), (strategy.base_index + (*sni_start as i64)));
         } else {
             current_data = tamper::edit_tls(current_data, strategy.base_index.try_into().unwrap());
 
