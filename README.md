@@ -47,7 +47,6 @@ This tool helps to bypass censorship caused by deep packet inspection
 --http_host_rmspace - Remove space after Host: header in HTTP
 --http_host_space - Add space after Host: header in HTTP
 --http_domain_cmix - Mix case in HTTP domain
---split_record_sni - Split TLS record at SNI middle in ClientHello 
 
 --split [Offset] - Apply TCP stream segmentation.
   If the offset in unapplicable for current case, strategy will be dropped
