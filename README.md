@@ -48,21 +48,22 @@ This tool helps to bypass censorship caused by deep packet inspection
 --http_host_space - Add space after Host: header in HTTP
 --http_domain_cmix - Mix case in HTTP domain
 
---split [Offset] - Apply TCP stream segmentation.
+--tcp_split [Offset] - Apply TCP stream segmentation.
   If the offset in unapplicable for current case, strategy will be dropped
   for performance saving reasons.
---disorder [Offset] - Apply TCP stream segmentation and corrupt first part by settings TTL/Hop-by-hop to 1.
+--tcp_disorder [Offset] - Apply TCP stream segmentation and corrupt first part by settings TTL/Hop-by-hop to 1.
   The first segment will not reach the server, and client will know about it
   Only via ACK/SACK. Adds delay equal to ping.
 
   If the offset in unapplicable for current case, strategy will be dropped
   for performance saving reasons.
---fake [Offset] - Apply TCP stream segmentation, corrupt first part and send a duplicate of it.
---oob [Offset] - Apply TCP stream segmentation.
+--tcp_fake_disordered [Offset] - Apply TCP stream segmentation, corrupt first part and send a duplicate of it.
+--tcp_fake_insert [Offset] - Apply TCP stream segmentation, send fake packet between them.
+--tcp_out_of_band [Offset] - Apply TCP stream segmentation.
   Sends Out-Of-Band byte at the end of first segment.
---disoob [Offset] - Apply TCP stream segmentation, corrupt first part.
+--tcp_out_of_band_disorder [Offset] - Apply TCP stream segmentation, corrupt first part.
   Sends Out-Of-Band byte at the end of first segment.
---fragtls [Offset] - Fragment TLS headers. See https://upb-syssec.github.io/blog/2023/record-fragmentation/
+--tls_record_frag [Offset] - Fragment TLS headers. See https://upb-syssec.github.io/blog/2023/record-fragmentation/
 ```
 
 ## Offsets
