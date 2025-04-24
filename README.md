@@ -37,7 +37,8 @@ This tool helps to bypass censorship caused by deep packet inspection
 --send_fake_clienthello - Send fake clienthello for each found SNI.
 --fake_clienthello_sni [SNI] - Set fake clienthello SNI.
 
---disable_sack - Disable selelective acknowledgment on linux
+--disable_sack - Disable selelective acknowledgment.
+  Fixes issues related to fake packets being retransmissed by the kernel.
 
 --whitelist_sni [DOMAIN] - Add certain SNI domain in whitelist. Whitelist is disabled by default when not specified.
 
