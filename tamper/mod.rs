@@ -1,5 +1,4 @@
 use crate::core;
-use crate::desync::utils::utils;
 
 pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
@@ -49,8 +48,6 @@ pub fn as_record(data: Vec<u8>) -> Vec<u8> {
 }
 
 pub fn edit_tls(mut data: Vec<u8>, index: usize) -> Vec<u8> {
-  let conf = core::parse_args();
-
   if data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
     let payload = data.split_off(5);
     let (first_part, second_part) = payload.split_at(index);

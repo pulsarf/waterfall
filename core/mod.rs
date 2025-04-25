@@ -6,9 +6,10 @@ pub enum Strategies {
   SPLIT,
   DISORDER,
   FAKE,
-  FAKE_MD,
+  FAKEMD,
   OOB,
   DISOOB,
+  OOBSTREAMHELL,
   FRAGTLS
 }
 
@@ -69,9 +70,10 @@ impl Strategy {
       "--tcp_split" => Strategies::SPLIT,
       "--tcp_disorder" => Strategies::DISORDER,
       "--tcp_fake_disordered" => Strategies::FAKE,
-      "--tcp_fake_insert" => Strategies::FAKE_MD,
+      "--tcp_fake_insert" => Strategies::FAKEMD,
       "--tcp_out_of_band" => Strategies::OOB,
       "--tcp_out_of_band_disorder" => Strategies::DISOOB,
+      "--tcp_out_of_band_hell" => Strategies::OOBSTREAMHELL,
       "--tls_record_frag" => Strategies::FRAGTLS,
       _ => Strategies::NONE
     };
@@ -100,6 +102,8 @@ pub struct AuxConfig {
 
   pub fake_clienthello: bool,
   pub fake_clienthello_sni: String,
+
+  pub oob_streamhell_data: String,
 
   pub http_host_cmix: bool,
   pub http_host_rmspace: bool,
@@ -140,6 +144,7 @@ pub fn parse_args() -> AuxConfig {
       active: false,
       data: vec![0u8]
     },
+    oob_streamhell_data: String::from(".@nt1_r3@ss3mbly_101.yandex"),
     disorder_packet_ttl: 8,
     disable_sack: false,
     default_ttl: 128,
@@ -245,6 +250,11 @@ pub fn parse_args() -> AuxConfig {
           active: true,
           data: Vec::from(args[offset].as_bytes())
         };
+      },
+      "--oob_stream_hell_data" => {
+          offset += 1 as usize;
+
+          config.oob_streamhell_data = args[offset].clone();
       },
       "--disorder_packet_ttl" => {
         offset += 1 as usize;

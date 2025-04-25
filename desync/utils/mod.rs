@@ -1,7 +1,6 @@
 
 pub mod utils {
   use curl::easy::Easy;
-  use std::io::{Read, Write};
   use serde_json;
 
   pub fn slice_packet(source: Vec<u8>, index: u64) -> Vec<Vec<u8>> {
@@ -129,6 +128,12 @@ pub mod utils {
 
     drop(transfer);
 
-    Ok(crate::utils::get_first_ip(response_data).unwrap())
+    match crate::utils::get_first_ip(response_data) {
+        Ok(ip) => {
+            return Ok(ip);
+        }, Err(_) => {
+            return Ok(String::from("0.0.0.0"));
+        }
+    }
   }
 }

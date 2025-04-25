@@ -28,7 +28,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = tamper::edit_http(data.to_vec());
   let mut fake_active: bool = false;
 
-  let sni_data = utils::parse_sni_index(Vec::from(data.clone()));
+  let sni_data = utils::parse_sni_index(Vec::from(data));
 
   let mut can_run: bool = false;
 
@@ -117,7 +117,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
           current_data = send_data[1].clone();
         }
       },
-      Strategies::FAKE_MD => {
+      Strategies::FAKEMD => {
         let send_data: Vec<Vec<u8>> = fake::get_split_packet(&current_data, strategy, &sni_data);
         
         if send_data.len() > 1 {
@@ -142,6 +142,23 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
 
           current_data = send_data[1].clone();
         }
+      },
+      Strategies::OOBSTREAMHELL => { 
+          let send_data: Vec<Vec<u8>> = oob::get_split_packet(&current_data, strategy, &sni_data);
+
+          if send_data.len() > 1 {
+              let ax_part: Vec<u8> = send_data[0].clone();
+
+              let _ = socket.write_all(&ax_part);
+
+              let oob_part = core::parse_args().oob_streamhell_data.clone();
+
+              for byte in oob_part.as_bytes() {
+                  net::write_oob_multiplex(&socket, vec![*byte]);
+              }
+
+              current_data = send_data[1].clone();
+          }
       },
       Strategies::DISOOB => { 
         let send_data: Vec<Vec<u8>> = disoob::get_split_packet(&current_data, strategy, &sni_data);

@@ -1,5 +1,5 @@
 pub mod parsers {
-  use std::net::{ToSocketAddrs, IpAddr};
+  use std::net::{IpAddr};
   use crate::utils::doh_resolver;
 
   #[derive(Debug, Clone)]
@@ -77,8 +77,6 @@ pub mod parsers {
                 IpAddr::V6(ip) => ip.octets().to_vec(),
               };
 
-              println!("[D] Successful resolve for {}:{} -> {:?}", &domain_str, &port, &ip_buffer);
-
               return IpParser {
                 dest_addr_type,
                 host_raw: ip_buffer,
@@ -94,8 +92,6 @@ pub mod parsers {
                   IpAddr::V4(ip) => ip.octets().to_vec(),
                   IpAddr::V6(ip) => ip.octets().to_vec(),
                 };
-
-                println!("[D] Successful resolve for {}:{} -> {:?}", &domain_str, &port, &ip_buffer);
 
                 return IpParser {
                   dest_addr_type,
