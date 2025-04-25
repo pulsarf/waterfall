@@ -12,7 +12,7 @@ This tool helps to bypass censorship caused by deep packet inspection
 ./waterfall [OPTION] [VALUE]
 
 [Offset] format: N+[s]?
-  N = unsigned 32-bit integer
+  N = signed 32-bit integer
   s = SNI Index (optional)
 Examples: 1+, 5+s, 13+s
 
@@ -80,19 +80,6 @@ Examples: 1+, 5+s, 13+s
 --tls_record_frag                  Offset  Fragment TLS headers
                                            See: https://upb-syssec.github.io/blog/2023/record-fragmentation/
 ```
-
-## Offsets
-
-Offset is a argument type for waterfall modules.
-
-It consists out of 3 parts. Index (i64), sign (sum or substract from base index) and base index.
-
-Examples:
-
-- `1-s`
-- `1-h`
-- `1+s`
-- `1+h`
 
 ## Building, running and testing
 
