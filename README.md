@@ -10,64 +10,75 @@ This tool helps to bypass censorship caused by deep packet inspection
 
 ```
 ./waterfall [OPTION] [VALUE]
-[Offset] is denoted as subcommand in format of N+[s]?,
-  where N is unsigned 32-bit integer, s - SNI Index.
-  [Offset] Block examples: 1+, 5+s, 13+s
-  
---bind_host [String] - Bind SOCKS5 Proxy to a specified host
---bind_port [U16] - Bind SOCKS5 Proxy to a specified port
 
---default_ttl [U8] - Default TTL value for adequate packets.
---fake_packet_ttl [U8] - Default TTL value for packets that should reach ONLY DPI 
---disorder_packet_ttl [U8] - Default TTL value for packets that SHOULD BE RESENT
+[Offset] format: N+[s]?
+  N = unsigned 32-bit integer
+  s = SNI Index (optional)
+Examples: 1+, 5+s, 13+s
 
---fake_packet_sni [String] - Server name identification for fake packets.
---fake_packet_send_http - Set if fake module should mimic HTTP packets. 
-  Can trick DPI into thinking that connection is made over HTTP and force it to skip
-  Over next packets.
---fake_packet_host [String] - Fake host for fake packets. Tricks DPI
---fake_packet_override_data [UNICODE String] - Override default packet data for fake packets.
---fake_as_oob - Force fake packets to be sent as Out-of-band data. 
-  May break some websites same as OOB module does.
-  Useful for cases when deep packet inspection tool looks for OOB data.
---fake_packet_reversed - Send fake packets in reversed order.
---fake_packet_double - Send two fake packets instead of one.
---fake_packet_random - Send random fake packets.
+--bind_host                        String  Bind SOCKS5 Proxy to specified host
+--bind_port                        U16     Bind SOCKS5 Proxy to specified port
 
---send_fake_clienthello - Send fake clienthello for each found SNI.
---fake_clienthello_sni [SNI] - Set fake clienthello SNI.
+--default_ttl                      U8      Default TTL value for adequate packets
+--fake_packet_ttl                  U8      Default TTL for packets that should reach ONLY DPI
+--disorder_packet_ttl              U8      Default TTL for packets that SHOULD BE RESENT
 
---disable_sack - Disable selelective acknowledgment.
-  Fixes issues related to fake packets being retransmissed by the kernel.
+--fake_packet_sni                  String  Server name identification for fake packets
 
---whitelist_sni [DOMAIN] - Add certain SNI domain in whitelist. Whitelist is disabled by default when not specified.
+--fake_packet_send_http                    Set to mimic HTTP packets (tricks DPI)
+                                           Can force DPI to skip next packets
 
---packet_hop [U8] - Applies all traffic modifications only to specific number of packets.
+--fake_packet_host                 String  Fake host for fake packets (DPI trick)
+--fake_packet_override_data        String  Override default packet data for fake packets
 
---http_host_cmix - Mix Host header case in HTTP
---http_host_rmspace - Remove space after Host: header in HTTP
---http_host_space - Add space after Host: header in HTTP
---http_domain_cmix - Mix case in HTTP domain
+--fake_as_oob                              Force fake packets as Out-of-band data
+                                           May break some websites like OOB module
+                                           Useful when DPI looks for OOB data
 
---oob_stream_hell_data - Set data for OOB stream hell.
+--fake_packet_reversed                     Send fake packets in reversed order
+--fake_packet_double                       Send two fake packets instead of one
+--fake_packet_random                       Send random fake packets
 
---tcp_split [Offset] - Apply TCP stream segmentation.
-  If the offset in unapplicable for current case, strategy will be dropped
-  for performance saving reasons.
---tcp_disorder [Offset] - Apply TCP stream segmentation and corrupt first part by settings TTL/Hop-by-hop to 1.
-  The first segment will not reach the server, and client will know about it
-  Only via ACK/SACK. Adds delay equal to ping.
+--send_fake_clienthello                    Send fake clienthello for each found SNI
 
-  If the offset in unapplicable for current case, strategy will be dropped
-  for performance saving reasons.
---tcp_fake_disordered [Offset] - Apply TCP stream segmentation, corrupt first part and send a duplicate of it.
---tcp_fake_insert [Offset] - Apply TCP stream segmentation, send fake packet between them.
---tcp_out_of_band [Offset] - Apply TCP stream segmentation.
-  Sends Out-Of-Band byte at the end of first segment.
---tcp_out_of_band_disorder [Offset] - Apply TCP stream segmentation, corrupt first part.
-  Sends Out-Of-Band byte at the end of first segment.
---tcp_out_of_band_hell [Offset] Apply TCP stream segmentation, spam OOB data in between of them.
---tls_record_frag [Offset] - Fragment TLS headers. See https://upb-syssec.github.io/blog/2023/record-fragmentation/
+--fc_sni                           SNI     Set fake clienthello SNI
+
+--disable_sack                             Disable selective acknowledgment
+                                           Fixes fake packet retransmission issues
+
+--whitelist_sni                    SNI     Add SNI domain to whitelist
+                                           Whitelist disabled by default when unspecified
+
+--packet_hop                       U64     Apply traffic modifications only to
+                                           specified number of packets
+
+--http_host_cmix                           Mix Host header case in HTTP
+--http_host_rmspace                        Remove space after Host: header in HTTP
+--http_host_space                          Add space after Host: header in HTTP
+--http_domain_cmix                         Mix case in HTTP domain
+
+--oob_stream_hell_data             String  Set data for OOB stream hell
+
+--tcp_split                        Offset  Apply TCP stream segmentation
+                                           Strategy dropped if offset inapplicable
+
+--tcp_disorder                     Offset  Segment and corrupt first part (TTL=1)
+                                           First segment won't reach server
+                                           Adds ping-equivalent delay
+                                           Strategy dropped if offset inapplicable
+
+--tcp_fake_disordered              Offset  Segment, corrupt and send duplicate
+
+--tcp_fake_insert                  Offset  Segment and insert fake packet between
+
+--tcp_out_of_band                  Offset  Segment and send OOB byte at end
+
+--tcp_out_of_band_disorder         Offset  Segment, corrupt and send OOB byte
+
+--tcp_out_of_band_hell             Offset  Segment and spam OOB data between
+
+--tls_record_frag                  Offset  Fragment TLS headers
+                                           See: https://upb-syssec.github.io/blog/2023/record-fragmentation/
 ```
 
 ## Offsets
