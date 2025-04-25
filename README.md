@@ -49,6 +49,8 @@ This tool helps to bypass censorship caused by deep packet inspection
 --http_host_space - Add space after Host: header in HTTP
 --http_domain_cmix - Mix case in HTTP domain
 
+--oob_stream_hell_data - Set data for OOB stream hell.
+
 --tcp_split [Offset] - Apply TCP stream segmentation.
   If the offset in unapplicable for current case, strategy will be dropped
   for performance saving reasons.
@@ -64,6 +66,7 @@ This tool helps to bypass censorship caused by deep packet inspection
   Sends Out-Of-Band byte at the end of first segment.
 --tcp_out_of_band_disorder [Offset] - Apply TCP stream segmentation, corrupt first part.
   Sends Out-Of-Band byte at the end of first segment.
+--tcp_out_of_band_hell [Offset] Apply TCP stream segmentation, spam OOB data in between of them.
 --tls_record_frag [Offset] - Fragment TLS headers. See https://upb-syssec.github.io/blog/2023/record-fragmentation/
 ```
 
