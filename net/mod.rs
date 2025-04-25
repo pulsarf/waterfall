@@ -40,7 +40,7 @@ pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>) {
 pub fn disable_sack(socket: &TcpStream) {
   if cfg!(unix) {
     #[cfg(unix)]
-    use libc::{setsockopt, IPPROTO_TCP, TCP_SACK};
+    use libc::{setsockopt, IPPROTO_TCP};
     #[cfg(unix)]
     use std::os::unix::io::AsRawFd;
 
@@ -48,16 +48,30 @@ pub fn disable_sack(socket: &TcpStream) {
     let fd = socket.as_raw_fd();
 
     #[cfg(unix)]
-    let disable: libc::c_int = 0;
+    let filter: [libc::sock_filter; 7] = [
+        libc::sock_filter { code: 0x30, jt: 0, jf: 0, k: 0x0000000c },
+        libc::sock_filter { code: 0x74, jt: 0, jf: 0, k: 0x00000004 },
+        libc::sock_filter { code: 0x35, jt: 3, jf: 0, k: 0x0000000b },
+        libc::sock_filter { code: 0x30, jt: 0, jf: 0, k: 0x00000022 },
+        libc::sock_filter { code: 0x15, jt: 1, jf: 0, k: 0x00000005 },
+        libc::sock_filter { code: 0x6,  jt: 0, jf: 0, k: 0x00000000 },
+        libc::sock_filter { code: 0x6,  jt: 0, jf: 0, k: 0x00040000 },
+    ];
+
+    #[cfg(unix)]
+    let bpf = libc::sock_fprog {
+        len: filter.len() as libc::c_ushort,
+        filter: filter.as_ptr() as *mut libc::sock_filter,
+    };
 
     #[cfg(unix)]
     let _ = unsafe {
       setsockopt(
         fd,
-        IPPROTO_TCP,
-        TCP_SACK,
-        &disable as *const _ as *const libc::c_void,
-        std::mem::size_of_val(&disable) as libc::socklen_t
+        libc::SOL_SOCKET,
+        libc::SO_ATTACH_FILTER,
+        &bpf as *const _ as *const libc::c_void,
+        std::mem::size_of_val(&bpf) as libc::socklen_t
       )
     };
   } else if cfg!(windows) {
