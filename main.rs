@@ -16,6 +16,8 @@ use crate::desync::utils::utils;
 
 use crate::parsers::parsers::IpParser;
 
+use crate::utils::Random;
+
 use core::Strategies;
 use core::Strategy;
 use core::AuxConfig;
@@ -24,16 +26,21 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::io::Write;
 
+use std::thread;
+use std::time;
+
 fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   let mut current_data = tamper::edit_http(data.to_vec());
   let mut fake_active: bool = false;
+
+  let config = core::parse_args();
 
   let sni_data = utils::parse_sni_index(Vec::from(data));
 
   let mut can_run: bool = false;
 
   if sni_data != (0, 0) && 
-      core::parse_args().whitelist_sni {
+      config.whitelist_sni {
       let start = sni_data.0 as usize;
       let end = sni_data.1 as usize;
 
@@ -41,7 +48,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
 
       let sni_string: String = String::from_utf8_lossy(sni_slice).to_string(); 
 
-      if !core::parse_args().whitelist_sni_list.iter().position(|r|
+      if !config.whitelist_sni_list.iter().position(|r|
           sni_string.contains(&*r)).is_none() {
           println!("[W] Apply fooling on whitelisted domain {}", &sni_string);
 
@@ -54,7 +61,7 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   }
 
   if sni_data != (0, 0) &&
-    core::parse_args().fake_clienthello {
+    config.fake_clienthello {
     drop::raw_send(&socket, [&[0x16, 0x03, 0x01, 0x00, 0xa5,
         0x01, 0x00, 0x00, 0xa1, 0x03, 0x03, 
 
@@ -71,10 +78,10 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
 
         0x00, 16, 
 
-        0x00, 0x00, 0x00, 0x28], core::parse_args().fake_clienthello_sni.as_bytes()].concat());
+        0x00, 0x00, 0x00, 0x28], config.fake_clienthello_sni.as_bytes()].concat());
   }
   
-  for strategy_raw in core::parse_args().strategies {
+  for strategy_raw in config.strategies {
     let strategy: Strategy = strategy_raw.data;
 
     if strategy.add_sni && sni_data == (0, 0) {
@@ -191,17 +198,36 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
     }
   }
 
-  if core::parse_args().fake_packet_reversed && fake_active {
+  if config.fake_packet_reversed && fake_active {
     drop::raw_send(&socket, fake::get_fake_packet(current_data.clone()));
   }
 
-  if core::parse_args().disable_sack {
+  if config.disable_sack {
     net::disable_sack(&socket);
   }
 
-  if core::parse_args().fake_packet_random {
+  if config.fake_packet_random {
     drop::raw_send(&socket, utils::make_random_vec(32 as usize, 0xDEAD));
   }
+  
+  let mut rand: Random = Random::new(time::SystemTime::now()
+      .duration_since(time::SystemTime::UNIX_EPOCH)
+      .unwrap()
+      .as_millis()
+      .try_into()
+      .unwrap());
+
+  let rand_num: u64 = rand.next_rand().into();
+  
+  let jitter_millis: u64 = config.l7_packet_jitter_max
+      .as_millis()
+      .try_into()
+      .unwrap_or(u64::MAX);
+
+  let random_jitter: u64 = ((rand_num * jitter_millis) / 256u64)
+      .into();
+
+  thread::sleep(time::Duration::from_millis(random_jitter));
 
   current_data
 }
@@ -215,10 +241,9 @@ fn main() {
     return;
   }
 
-  println!(" == Waterfall DPI bypass tool == 
-Configuration: {:#?}", config);
+  println!("{:#?}", config);
 
-  let listener: TcpListener = TcpListener::bind(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).unwrap();
+  let listener: TcpListener = TcpListener::bind(format!("{}:{}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).unwrap();
 
   for stream in listener.incoming() {
     match stream {

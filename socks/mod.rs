@@ -130,7 +130,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     return;
   }
 
-  let server_socket = TcpStream::connect(sock_addr);
+  let server_socket = core::connect_socket(sock_addr);
 
   match server_socket {
     Ok(mut socket) => {
@@ -145,7 +145,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       let func = Arc::new(client_hook);
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 65535];
+        let msg_buffer: &mut [u8] = &mut [0u8; 16384];
 
         loop {
           match socket.read(msg_buffer) {
@@ -159,7 +159,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       });
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 65535];
+        let msg_buffer: &mut [u8] = &mut [0u8; 16384];
         let client_hook_fn = Arc::clone(&func);
         let mut hops: u64 = 0;
 

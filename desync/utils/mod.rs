@@ -22,7 +22,7 @@ pub mod utils {
     vec![beta, alpha]
   }
 
-  struct Random {
+  pub struct Random {
       last_num: u32,
 
       magic_mul: u32,
@@ -30,7 +30,7 @@ pub mod utils {
   }
 
   impl Random {
-      fn new(initial: u32) -> Self {
+      pub fn new(initial: u32) -> Self {
           Self { 
               last_num: initial,
               magic_mul: 1664525,
@@ -42,7 +42,7 @@ pub mod utils {
           num >> 16
       }
 
-      fn next_rand(&mut self) -> u8 {
+      pub fn next_rand(&mut self) -> u8 {
           self.last_num = self.last_num
               .wrapping_mul(self.magic_mul)
               .wrapping_add(self.magic_add);

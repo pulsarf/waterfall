@@ -1,4 +1,5 @@
 use std::env;
+use std::time;
 
 #[derive(Debug, Clone)]
 pub enum Strategies {
@@ -98,6 +99,12 @@ pub struct AuxConfig {
   pub fake_packet_reversed: bool,
   pub fake_packet_random: bool,
 
+  pub so_recv_size: usize,
+  pub so_send_size: usize,
+  pub so_opt_cutoff: u64,
+
+  pub l7_packet_jitter_max: time::Duration,
+
   pub disable_sack: bool,
 
   pub fake_clienthello: bool,
@@ -109,7 +116,6 @@ pub struct AuxConfig {
   pub http_host_rmspace: bool,
   pub http_host_space: bool,
   pub http_domain_cmix: bool,
-  pub split_record_sni: bool,
 
   pub disorder_packet_ttl: u8,
   pub default_ttl: u8,
@@ -126,6 +132,44 @@ pub struct AuxConfig {
 pub struct DataOverride<T> {
   pub active: bool,
   pub data: T
+}
+
+use socket2::{Socket, Domain, Type, Protocol};
+use std::{net::{TcpStream, SocketAddr}, io};
+use std::thread;
+
+pub fn connect_socket(addr: SocketAddr) -> io::Result<TcpStream> {
+    let domain_type = if addr.is_ipv4() {
+        Domain::IPV4
+    } else {
+        Domain::IPV6
+    };
+
+    let socket = Socket::new(domain_type, Type::STREAM, Some(Protocol::TCP))?;
+
+    let AuxConfig { so_recv_size, so_send_size, so_opt_cutoff, .. } = parse_args();
+    
+    socket.set_recv_buffer_size(so_recv_size)?;
+    socket.set_send_buffer_size(so_send_size)?;
+    socket.set_nodelay(true)?;
+    socket.set_keepalive(true)?;
+
+    let so_clone = socket.try_clone().unwrap();
+
+    thread::spawn(move || {
+        thread::sleep(time::Duration::from_millis(so_opt_cutoff));
+
+        let _ = so_clone.set_recv_buffer_size(16653);
+        let _ = so_clone.set_send_buffer_size(16653);
+    });
+
+    if domain_type == Domain::IPV6 {
+        socket.set_only_v6(false)?;
+    }
+
+    socket.connect(&addr.into())?;
+    
+    Ok(socket.into())
 }
 
 pub fn parse_args() -> AuxConfig {
@@ -149,12 +193,15 @@ pub fn parse_args() -> AuxConfig {
     disable_sack: false,
     default_ttl: 128,
     out_of_band_charid: 213u8,
+    so_recv_size: 65535,
+    so_send_size: 65535,
+    so_opt_cutoff: 500,
     packet_hop: std::u64::MAX,
+    l7_packet_jitter_max: time::Duration::from_millis(0),
     http_host_cmix: false,
     http_host_rmspace: false,
     http_host_space: false,
     http_domain_cmix: false,
-    split_record_sni: false,
     fake_clienthello: false,
     fake_clienthello_sni: String::from("yandex.ru"),
 
@@ -228,16 +275,6 @@ pub fn parse_args() -> AuxConfig {
       "--http_host_space" => {
         config.http_host_space = true;
       },
-      "--fragtls" => {
-        config.split_record_sni = true;
-
-        offset += 1 as usize;
-
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--fragtls"), args[offset].clone())
-        });
-      },
       "--fake_packet_host" => {
         offset += 1 as usize;
 
@@ -275,6 +312,21 @@ pub fn parse_args() -> AuxConfig {
       "--fake_packet_reversed" => {
         config.fake_packet_reversed = true;
       },
+      "--so_recv_size" => {
+          offset += 1 as usize;
+
+          config.so_recv_size = args[offset].parse::<usize>().expect("Receive buffer size must be usize"); 
+      },
+      "--so_send_size" => {
+          offset += 1 as usize;
+
+          config.so_send_size = args[offset].parse::<usize>().expect("Send buffer size must be usize"); 
+      },
+      "--so_opt_cutoff" => {
+          offset += 1 as usize;
+
+          config.so_opt_cutoff = args[offset].parse::<u64>().expect("Socket bufsize reset cutoff must be u64"); 
+      },
       "--default_ttl" => {
         offset += 1 as usize;
 
@@ -290,6 +342,11 @@ pub fn parse_args() -> AuxConfig {
 
         config.whitelist_sni = true;
         config.whitelist_sni_list.push(args[offset].clone());
+      },
+      "--resist_timing_attack" => {
+        offset += 1 as usize;
+
+        config.l7_packet_jitter_max = time::Duration::from_millis(args[offset].parse::<u8>().expect("Packet jitter should be 0-255").into());
       },
       strategy => {
           offset += 1 as usize;
