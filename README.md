@@ -79,6 +79,14 @@ Examples: 1+, 5+s, 13+s
 
 --tls_record_frag                  Offset  Fragment TLS headers
                                            See: https://upb-syssec.github.io/blog/2023/record-fragmentation/
+
+--resist_timing_attack             U8      Set max random delay for send calls. Default: 15
+
+--so_recv_size                     USIZE   Set SO_RECV buffer size
+
+--so_send_size                     USIZE   Set SO_SEND buffer size
+
+--so_opt_cutoff                    U64     Reset SO_RECV and SO_SEND sizes to 16KB after delay passes
 ```
 
 ## Building, running and testing
