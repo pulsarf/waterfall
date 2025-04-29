@@ -10,6 +10,20 @@ use std::{
   thread
 };
 
+fn find_udp_payload_start(packet: &[u8]) -> usize {
+  if packet.len() < 4 { return 0; }
+    
+  match packet[3] {
+    1 => 4 + 4 + 2,
+    3 => {
+      if packet.len() < 5 { return 0; }
+      4 + 1 + packet[4] as usize + 2
+    },
+    4 => 4 + 16 + 2,
+    _ => 0,
+  }
+}
+
 pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static) {
   let mut client: TcpStream = proxy_client.try_clone().unwrap();
 
@@ -17,6 +31,13 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
 
   let _ = client.set_nodelay(true);
   let _ = client.read(&mut buffer);
+
+  if buffer[0] != 5 {
+      let _ = client.write_all(&[5, 0]);
+
+      return;
+  }
+  
   let _ = client.write_all(&[5, 0]);
   let _ = client.read(&mut buffer);
   
@@ -55,43 +76,68 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     _ => SocketAddr::new([0, 0, 0, 0].into(), parsed_data.port)
   };
 
-  let server_socket = TcpStream::connect(sock_addr);
-
-  if parsed_data.is_udp { 
-    println!("UDP Associate");
-
-    let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap(); 
-    let _ = udp_socket.connect(sock_addr); 
-
-    let udp_socket1 = udp_socket.try_clone().unwrap();
-    let mut client1 = client.try_clone().unwrap();
+  if parsed_data.is_udp {
+    println!("UDP Associate Requested");
         
-    thread::spawn(move || { 
-      let mut buf = [0u8; 65535]; 
-      loop { 
-        match udp_socket.recv(&mut buf) { 
-          Ok(size) => { 
-            let _ = client.write_all(&buf[..size]); 
-          }, Err(_) => break 
-        } 
-      } 
-    }); 
+    let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+    let udp_port = udp_socket.local_addr().unwrap().port();
+        
 
-    thread::spawn(move || { 
-      let mut buf = [0u8; 65535]; 
-      loop { 
-        match client1.read(&mut buf) { 
-          Ok(size) => { 
-            if size > 0 { 
-              let _ = udp_socket1.send(&buf[..size]); 
-            } else { break } 
-          }, Err(_) => break 
-        } 
-      } 
-    }); 
+    let udp_response = vec![
+      5, 0, 0, 1,
+      0, 0, 0, 0,
+      (udp_port >> 8) as u8, (udp_port & 0xFF) as u8 
+    ];
+    
+    let _ = client.write_all(&udp_response);
+        
 
+    let mut client_clone = client.try_clone().unwrap();
+    let udp_socket_clone = udp_socket.try_clone().unwrap();
+        
+
+    thread::spawn(move || {
+      let mut buf = [0u8; 65535];
+
+      loop {
+        match udp_socket.recv_from(&mut buf) {
+          Ok((size, _src)) => {
+            let payload_start = find_udp_payload_start(&buf[..size]);
+            let _ = client_clone.write_all(&buf[payload_start..size]);
+          },
+          Err(_) => break,
+        }
+      }
+    });
+        
+
+    thread::spawn(move || {
+      let mut buf = [0u8; 65535];
+      
+      loop {
+        match client.read(&mut buf) {
+          Ok(size) => {
+            if size == 0 { break; }
+
+            let mut packet = Vec::with_capacity(size + 10);
+            packet.extend(&[0, 0, 0]);
+            packet.push(1);
+            packet.extend(&[0, 0, 0, 0]);
+            packet.extend(&[0, 0]);
+            packet.extend(&buf[..size]);
+            
+            let _ = udp_socket_clone.send_to(&packet, sock_addr);
+
+          },
+          Err(_) => break,
+        }
+      }
+    });
+        
     return;
   }
+
+  let server_socket = core::connect_socket(sock_addr);
 
   match server_socket {
     Ok(mut socket) => {
@@ -106,7 +152,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       let func = Arc::new(client_hook);
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 65535];
+        let msg_buffer: &mut [u8] = &mut [0u8; 16384];
 
         loop {
           match socket.read(msg_buffer) {
@@ -120,7 +166,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       });
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 65535];
+        let msg_buffer: &mut [u8] = &mut [0u8; 16384];
         let client_hook_fn = Arc::clone(&func);
         let mut hops: u64 = 0;
 

@@ -1,5 +1,4 @@
 use crate::core;
-use crate::desync::utils::utils;
 
 pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
   let conf = core::parse_args();
@@ -37,33 +36,30 @@ pub fn edit_http(mut data: Vec<u8>) -> Vec<u8> {
   data
 }
 
-pub fn edit_tls(mut data: Vec<u8>) -> Vec<u8> {
-  let conf = core::parse_args();
 
-  if conf.split_record_sni && data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
-    let (sni_start, _sni_end) = utils::parse_sni_index(data.clone());
+pub fn as_record(data: Vec<u8>) -> Vec<u8> {
+  let data_length: [u8; 2] = (data.len() as u16).to_be_bytes();
+  let mut record: Vec<u8> = vec![0x16u8, 0x03u8, 0x01u8];
     
-    if sni_start <= 0 || sni_start >= data.len().try_into().unwrap() {
-      return data;
-    }
-
-    let reclen: [u8; 2] = ((sni_start + 2) as u16).to_be_bytes();
+  record.extend(data_length);
+  record.extend(data);
     
-    data[3] = reclen[0];
-    data[4] = reclen[1];
+  record
+}
 
-    let pointer: usize = (2 + 4 + sni_start).try_into().unwrap();
-    let remaining = (data.len() as u16) - ((sni_start as u16) + 2 + 4 + 3);
-    let bytes: [u8; 2] = remaining.to_le_bytes();
+pub fn edit_tls(mut data: Vec<u8>, index: usize) -> Vec<u8> {
+  if data[0] == 0x16 && data[1] == 0x03 && data[2] == 0x01 {
+    let payload = data.split_off(5);
+    let (first_part, second_part) = payload.split_at(index);
 
-    data.insert(pointer, bytes[0]);
-    data.insert(pointer, bytes[1]);
-
-    data.insert(pointer, 0x01);
-    data.insert(pointer, 0x03);
-    data.insert(pointer, 0x16);
+    let record1 = as_record(first_part.to_vec());
+    let record2 = as_record(second_part.to_vec());
+        
+    let mut result = record1;
+    result.extend(record2);
+        
+    return result;
   }
 
   data
 }
-

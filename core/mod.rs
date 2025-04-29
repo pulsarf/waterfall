@@ -1,4 +1,5 @@
 use std::env;
+use std::time;
 
 #[derive(Debug, Clone)]
 pub enum Strategies {
@@ -6,25 +7,38 @@ pub enum Strategies {
   SPLIT,
   DISORDER,
   FAKE,
+  FAKEMD,
+  FAKESURROUND,
+  FAKE2DISORDER,
+  FAKE2INSERT,
+  DISORDER2,
+  OOB2,
   OOB,
-  DISOOB
+  DISOOB,
+  OOBSTREAMHELL,
+  MELTDOWN,
+  TRAIL,
+  MELTDOWNUDP,
+  FRAGTLS
 }
 
 #[derive(Debug, Clone)]
 pub struct Strategy {
   pub method: Strategies,
-  pub base_index: usize,
+  pub base_index: i64,
   pub add_sni: bool,
-  pub add_host: bool
+  pub add_host: bool,
+  pub subtract: bool,
 }
 
 impl Strategy {
-  pub fn from(first: String, second: String) -> Strategy {
+  pub fn from(first: String, second: String, subtract: bool) -> Strategy {
     let mut strategy: Strategy = Strategy {
       method: Strategies::NONE,
       base_index: 0,
       add_sni: false,
-      add_host: false
+      add_host: false,
+      subtract,
     };
 
     if second.contains("s") {
@@ -41,20 +55,45 @@ impl Strategy {
         .map(|str| String::from(str))
         .collect();
       
-      match parts[0].parse::<u64>() {
+      match parts[0].parse::<i64>() {
         Ok(res) => {
-          strategy.base_index = res as usize;
+          strategy.base_index = if strategy.subtract { res - 1 } else { res };
+        },
+        Err(_) => { }
+      };
+    };
+
+    if second.contains("-") {
+      let parts: Vec<String> = second
+        .split("-")
+        .map(|str| String::from(str))
+        .collect();
+      
+      match parts[0].parse::<i64>() {
+        Ok(res) => {
+          strategy.base_index = if strategy.subtract { -(res + 1) } else { -res };
         },
         Err(_) => { }
       };
     };
 
     strategy.method = match first.as_str() {
-      "--split" => Strategies::SPLIT,
-      "--disorder" => Strategies::DISORDER,
-      "--fake" => Strategies::FAKE,
-      "--oob" => Strategies::OOB,
-      "--disoob" => Strategies::DISOOB,
+      "--tcp_split" => Strategies::SPLIT,
+      "--tcp_disorder" => Strategies::DISORDER,
+      "--tcp_disorder2" => Strategies::DISORDER2,
+      "--tcp_fake_disordered" => Strategies::FAKE,
+      "--tcp_fake_insert" => Strategies::FAKEMD,
+      "--tcp_fake_surround" => Strategies::FAKESURROUND,
+      "--tcp_fake2_disordered" => Strategies::FAKE2DISORDER,
+      "--tcp_fake2_insert" => Strategies::FAKE2INSERT,
+      "--tcp_out_of_band" => Strategies::OOB,
+      "--tcp_out_of_band_disorder" => Strategies::DISOOB,
+      "--tcp_out_of_band_disorder2" => Strategies::OOB2,
+      "--tcp_meltdown" => Strategies::MELTDOWN,
+      "--tcp_out_of_band_hell" => Strategies::OOBSTREAMHELL,
+      "--tls_record_frag" => Strategies::FRAGTLS,
+      "--udp_0trail" => Strategies::TRAIL,
+      "--udp_meltdown" => Strategies::MELTDOWNUDP,
       _ => Strategies::NONE
     };
 
@@ -67,6 +106,11 @@ pub struct AuxConfig {
   pub bind_host: String,
   pub bind_port: u16,
 
+  pub bind_iface: String,
+  pub bind_iface_mtu: u32,
+  pub bind_iface_ipv4: String,
+  pub bind_iface_ipv6: String,
+
   pub fake_packet_ttl: u8,
   pub fake_packet_sni: String,
   pub fake_as_oob: bool,
@@ -76,20 +120,35 @@ pub struct AuxConfig {
   pub fake_packet_override_data: DataOverride::<Vec<u8>>,
   pub fake_packet_double: bool,
   pub fake_packet_reversed: bool,
+  pub fake_packet_random: bool,
+
+  pub so_recv_size: usize,
+  pub so_send_size: usize,
+  pub so_opt_cutoff: u64,
+
+  pub l7_packet_jitter_max: time::Duration,
+
+  pub disable_sack: bool,
+
+  pub fake_clienthello: bool,
+  pub fake_clienthello_sni: String,
+
+  pub oob_streamhell_data: String,
 
   pub http_host_cmix: bool,
   pub http_host_rmspace: bool,
   pub http_host_space: bool,
   pub http_domain_cmix: bool,
-  pub split_record_sni: bool,
 
-  pub synack: bool,
   pub disorder_packet_ttl: u8,
   pub default_ttl: u8,
   pub out_of_band_charid: u8,
   pub packet_hop: u64,
 
-  pub strategies: Vec<DataOverride::<Strategy>>
+  pub whitelist_sni: bool,
+  pub whitelist_sni_list: Vec<String>,
+
+  pub strategies: Vec<DataOverride::<Strategy>>,
 }
 
 #[derive(Clone, Debug)]
@@ -98,10 +157,52 @@ pub struct DataOverride<T> {
   pub data: T
 }
 
+use socket2::{Socket, Domain, Type, Protocol};
+use std::{net::{TcpStream, SocketAddr}, io};
+use std::thread;
+
+pub fn connect_socket(addr: SocketAddr) -> io::Result<TcpStream> {
+    let domain_type = if addr.is_ipv4() {
+        Domain::IPV4
+    } else {
+        Domain::IPV6
+    };
+
+    let socket = Socket::new(domain_type, Type::STREAM, Some(Protocol::TCP))?;
+
+    let AuxConfig { so_recv_size, so_send_size, so_opt_cutoff, .. } = parse_args();
+    
+    socket.set_recv_buffer_size(so_recv_size)?;
+    socket.set_send_buffer_size(so_send_size)?;
+    socket.set_nodelay(true)?;
+    socket.set_keepalive(true)?;
+
+    let so_clone = socket.try_clone().unwrap();
+
+    thread::spawn(move || {
+        thread::sleep(time::Duration::from_millis(so_opt_cutoff));
+
+        let _ = so_clone.set_recv_buffer_size(16653);
+        let _ = so_clone.set_send_buffer_size(16653);
+    });
+
+    if domain_type == Domain::IPV6 {
+        socket.set_only_v6(false)?;
+    }
+
+    socket.connect(&addr.into())?;
+    
+    Ok(socket.into())
+}
+
 pub fn parse_args() -> AuxConfig {
   let mut config: AuxConfig = AuxConfig {
     bind_host: String::from("127.0.0.1"),
     bind_port: 7878u16,
+    bind_iface: String::from(""),
+    bind_iface_mtu: 8400,
+    bind_iface_ipv4: String::from("192.18.0.0"),
+    bind_iface_ipv6: String::from("fc00::1"),
     fake_packet_ttl: 3,
     fake_packet_sni: String::from("yandex.ru"),
     fake_packet_send_http: false,
@@ -109,22 +210,32 @@ pub fn parse_args() -> AuxConfig {
     fake_as_oob: false,
     fake_packet_double: false,
     fake_packet_reversed: false,
-    synack: false,
+    fake_packet_random: false,
     fake_packet_override_data: DataOverride::<Vec<u8>> {
       active: false,
       data: vec![0u8]
     },
+    oob_streamhell_data: String::from(".@nt1_r3@ss3mbly_101.yandex"),
     disorder_packet_ttl: 8,
+    disable_sack: false,
     default_ttl: 128,
     out_of_band_charid: 213u8,
+    so_recv_size: 65535,
+    so_send_size: 65535,
+    so_opt_cutoff: 500,
     packet_hop: std::u64::MAX,
+    l7_packet_jitter_max: time::Duration::from_millis(0),
     http_host_cmix: false,
     http_host_rmspace: false,
     http_host_space: false,
     http_domain_cmix: false,
-    split_record_sni: false,
+    fake_clienthello: false,
+    fake_clienthello_sni: String::from("yandex.ru"),
+
+    whitelist_sni: false,
+    whitelist_sni_list: vec![],
     
-    strategies: vec![]
+    strategies: vec![],
   };
 
   let mut args: Vec<String> = env::args().collect();
@@ -152,10 +263,41 @@ pub fn parse_args() -> AuxConfig {
 
         config.bind_port = args[offset].parse::<u16>().expect("FATAL: bind_port argument exceeds uint16 limit.");
       },
+      "--bind_iface" => {
+          offset += 1 as usize;
+
+          config.bind_iface = args[offset].clone();
+      },
+      "--bind_iface_mtu" => {
+          offset += 1 as usize;
+
+          config.bind_iface_mtu = args[offset].parse::<u32>().expect("bind_iface_mtu must be u32");
+      },
+      "--bind_iface_ipv4" => {
+          offset += 1 as usize;
+
+          config.bind_iface_ipv4 = args[offset].clone();
+      },
+      "--bind_iface_ipv6" => {
+          offset += 1 as usize;
+
+          config.bind_iface_ipv6 = args[offset].clone();
+      },
       "--fake_packet_ttl" => {
         offset += 1 as usize;
 
         config.fake_packet_ttl = args[offset].parse::<u8>().expect("FATAL: fake_packet_ttl argument exceeds uint8 limit.");
+      },
+      "--send_fake_clienthello" => {
+        config.fake_clienthello = true;
+      },
+      "--disable_sack" => {
+        config.disable_sack = true;
+      },
+      "--fc_sni" => {
+        offset += 1 as usize;
+
+        config.fake_clienthello_sni = args[offset].clone();
       },
       "--fake_packet_sni" => {
         offset += 1 as usize;
@@ -180,21 +322,38 @@ pub fn parse_args() -> AuxConfig {
       "--http_host_space" => {
         config.http_host_space = true;
       },
-      "--split_record_sni" => {
-        config.split_record_sni = true;
-      },
       "--fake_packet_host" => {
         offset += 1 as usize;
 
         config.fake_packet_host = args[offset].clone();
       },
-      "--fake_packet_override_data" => {
+      "--fake_packet_str" => {
         offset += 1 as usize;
 
         config.fake_packet_override_data = DataOverride::<Vec<u8>> {
           active: true,
           data: Vec::from(args[offset].as_bytes())
         };
+      },
+      "--fake_packet_hex" => {
+        offset += 1 as usize;
+
+        let hex_str = &args[offset];
+
+        let hex_bytes = (0..hex_str.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex_str[i..(i + 2)], 16).unwrap())
+            .collect::<Vec<u8>>();
+
+        config.fake_packet_override_data = DataOverride::<Vec<u8>> {
+          active: true,
+          data: hex_bytes
+        };
+      },
+      "--oob_stream_hell_data" => {
+          offset += 1 as usize;
+
+          config.oob_streamhell_data = args[offset].clone();
       },
       "--disorder_packet_ttl" => {
         offset += 1 as usize;
@@ -206,14 +365,29 @@ pub fn parse_args() -> AuxConfig {
 
         config.packet_hop = args[offset].parse::<u64>().expect("FATAL: packet_hop argument exceeds uint64 limit.");
       },
-      "--synack" => {
-        config.synack = true;
+      "--fake_packet_random" => {
+        config.fake_packet_random = true;
       },
       "--fake_packet_double" => {
         config.fake_packet_double = true;
       },
       "--fake_packet_reversed" => {
         config.fake_packet_reversed = true;
+      },
+      "--so_recv_size" => {
+          offset += 1 as usize;
+
+          config.so_recv_size = args[offset].parse::<usize>().expect("Receive buffer size must be usize"); 
+      },
+      "--so_send_size" => {
+          offset += 1 as usize;
+
+          config.so_send_size = args[offset].parse::<usize>().expect("Send buffer size must be usize"); 
+      },
+      "--so_opt_cutoff" => {
+          offset += 1 as usize;
+
+          config.so_opt_cutoff = args[offset].parse::<u64>().expect("Socket bufsize reset cutoff must be u64"); 
       },
       "--default_ttl" => {
         offset += 1 as usize;
@@ -225,63 +399,72 @@ pub fn parse_args() -> AuxConfig {
 
         config.out_of_band_charid = args[offset].parse::<u8>().expect("FATAL: out_of_band_charid argument exceeds uint8 limit.");
       },
-      "--split" => {
+      "--whitelist_sni" => {
         offset += 1 as usize;
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--split"), args[offset].clone())
-        });
+        config.whitelist_sni = true;
+        config.whitelist_sni_list.push(args[offset].clone());
       },
-      "--disorder" => {
+      "--resist_timing_attack" => {
         offset += 1 as usize;
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--disorder"), args[offset].clone())
-        });
+        config.l7_packet_jitter_max = time::Duration::from_millis(args[offset].parse::<u8>().expect("Packet jitter should be 0-255").into());
       },
-      "--disorder_ttlc" => {
-        offset += 1 as usize;
+      "--dpi_bypass_strategies" => {
+          offset += 1 as usize;
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--disorder_ttlc"), args[offset].clone())
-        });
-      },
-      "--fake_ttlc" => {
-        offset += 1 as usize;
+          let mut bypass_strategies = args[offset]
+              .split(",")
+              .map(|n| n.to_string())
+              .collect::<Vec<String>>();
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--fake_ttlc"), args[offset].clone())
-        });
-      },
-      "--fake" => {
-        offset += 1 as usize;
+          let base_strategy_name = bypass_strategies[0].clone();
+          let base_opt_pos = args[offset + 1]
+              .split(",")
+              .map(|n| n.to_string())
+              .collect::<Vec<String>>();
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--fake"), args[offset].clone())
-        });
-      },
-      "--oob" => {
-        offset += 1 as usize;
+          for index in &base_opt_pos {
+              config.strategies.push(DataOverride::<Strategy> {
+                  active: true,
+                  data: Strategy::from("--".to_owned() + &base_strategy_name.clone(), index.to_string(), false)
+              });
+          }
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--oob"), args[offset].clone())
-        });
-      },
-      "--disoob" => {
-        offset += 1 as usize;
+          bypass_strategies.drain(0..1);
 
-        config.strategies.push(DataOverride::<Strategy> {
-          active: true,
-          data: Strategy::from(String::from("--disoob"), args[offset].clone())
-        });
+          if bypass_strategies.len() == 0 {
+              break;
+          }
+
+          let mut strategy_index = 1;
+
+          for strategy in bypass_strategies {
+              strategy_index += 1;
+
+              let strategy_opt_pos = args[offset + strategy_index].clone();
+
+              if cfg!(windows) && strategy_opt_pos == "auto" {
+                  for index in &base_opt_pos {
+                      if (base_strategy_name.contains("disorder") && strategy.contains("split")) ||
+                         (base_strategy_name.contains("fake") && strategy.contains("disorder")) { 
+                          config.strategies.push(DataOverride::<Strategy> {
+                              active: true,
+                              data: Strategy::from("--".to_owned() + &strategy.clone(), String::from(index), true)
+                          });
+                      }
+                  }
+              } else {
+                  config.strategies.push(DataOverride::<Strategy> {
+                      active: true,
+                      data: Strategy::from("--".to_owned() + &strategy, String::from(&strategy_opt_pos), false)
+                  });
+              }
+          }
+
+          offset += strategy_index as usize;
       },
-      _e => { }
+      _ => { }
     }
 
     offset += 1 as usize;
