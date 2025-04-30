@@ -1,5 +1,7 @@
 use std::env;
 use std::time;
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum Strategies {
@@ -23,22 +25,79 @@ pub enum Strategies {
 }
 
 #[derive(Debug, Clone)]
+pub struct WeakRange {
+    pub start: u16,
+    pub end: Option<u16>,
+}
+
+pub trait WeakRangeParser {
+    fn parse(&self) -> Result<WeakRange, String>;
+}
+
+impl<'a> WeakRangeParser for &'a str {
+    fn parse(&self) -> Result<WeakRange, String> {
+        let mut parts = self.split('-');
+
+        let start_str = parts.next().ok_or("Range parse failed".to_string())?;
+        let start: u16 = start_str.trim().parse().map_err(|err: ParseIntError| err.to_string())?;
+
+        if let Some(end_str) = parts.next() {
+            let end_str = end_str.trim();
+            if end_str.is_empty() {
+                Ok(WeakRange {
+                    start,
+                    end: None,
+                })
+            } else {
+                let end: u16 = end_str.parse().map_err(|err: ParseIntError| err.to_string())?;
+                Ok(WeakRange {
+                    start,
+                    end: Some(end),
+                })
+            }
+        } else {
+            Ok(WeakRange {
+                start,
+                end: None,
+            })
+        }
+    }
+}
+
+impl FromStr for WeakRange { 
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse()
+    }
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum NetworkProtocol {
+    UDP,
+    TCP
+}
+
+#[derive(Debug, Clone)]
 pub struct Strategy {
   pub method: Strategies,
   pub base_index: i64,
   pub add_sni: bool,
   pub add_host: bool,
   pub subtract: bool,
+
+  pub filter_protocol: Option<NetworkProtocol>,
+  pub filter_port: Option<WeakRange>
 }
 
 impl Strategy {
-  pub fn from(first: String, second: String, subtract: bool) -> Strategy {
+  pub fn from(first: String, second: String, subtract: bool, filter_protocol: &str, filter_port: &str) -> Strategy {
     let mut strategy: Strategy = Strategy {
       method: Strategies::NONE,
       base_index: 0,
       add_sni: false,
       add_host: false,
       subtract,
+      filter_protocol: None,
+      filter_port: None
     };
 
     if second.contains("s") {
@@ -47,6 +106,19 @@ impl Strategy {
 
     if second.contains("h") {
       strategy.add_host = true;
+    }
+
+    if let Ok(protocol) = match filter_protocol {
+        "udp" => Ok(NetworkProtocol::UDP),
+        "tcp" => Ok(NetworkProtocol::TCP),
+        _ => Err(".")
+    } {
+        strategy.filter_protocol = Some(protocol);
+    }
+
+    // !!!! MEMORY LEAK
+    if let Ok(weak_range) = filter_port.parse::<WeakRange>() {
+        strategy.filter_port = Some(weak_range);
     }
 
     if second.contains("+") {
@@ -243,6 +315,9 @@ pub fn parse_args() -> AuxConfig {
 
   let mut offset: usize = 0 as usize;
 
+  let mut filter_protocol: &str = "";
+  let mut filter_port: &str = "";
+
   'reader: loop {
     if args.len() == 0 {
       break 'reader;
@@ -253,6 +328,16 @@ pub fn parse_args() -> AuxConfig {
     }
 
     match args[offset].as_str() {
+      "--filter_protocol" => {
+        offset += 1 as usize;
+
+        filter_protocol = &args[offset];
+      },
+      "--filter_port" => {
+        offset += 1 as usize;
+
+        filter_port = &args[offset];
+      },
       "--bind_host" => {
         offset += 1 as usize;
 
@@ -427,7 +512,7 @@ pub fn parse_args() -> AuxConfig {
           for index in &base_opt_pos {
               config.strategies.push(DataOverride::<Strategy> {
                   active: true,
-                  data: Strategy::from("--".to_owned() + &base_strategy_name.clone(), index.to_string(), false)
+                  data: Strategy::from("--".to_owned() + &base_strategy_name.clone(), index.to_string(), false, filter_protocol, filter_port)
               });
           }
 
@@ -450,14 +535,14 @@ pub fn parse_args() -> AuxConfig {
                          (base_strategy_name.contains("fake") && strategy.contains("disorder")) { 
                           config.strategies.push(DataOverride::<Strategy> {
                               active: true,
-                              data: Strategy::from("--".to_owned() + &strategy.clone(), String::from(index), true)
+                              data: Strategy::from("--".to_owned() + &strategy.clone(), String::from(index), true, filter_protocol, filter_port)
                           });
                       }
                   }
               } else {
                   config.strategies.push(DataOverride::<Strategy> {
                       active: true,
-                      data: Strategy::from("--".to_owned() + &strategy, String::from(&strategy_opt_pos), false)
+                      data: Strategy::from("--".to_owned() + &strategy, String::from(&strategy_opt_pos), false, filter_protocol, filter_port)
                   });
               }
           }
