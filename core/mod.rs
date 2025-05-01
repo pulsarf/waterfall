@@ -30,16 +30,12 @@ pub struct WeakRange {
     pub end: Option<u16>,
 }
 
-pub trait WeakRangeParser {
-    fn parse(&self) -> Result<WeakRange, String>;
-}
-
-impl<'a> WeakRangeParser for &'a str {
-    fn parse(&self) -> Result<WeakRange, String> {
-        let mut parts = self.split('-');
+impl WeakRange {
+    pub fn from(s: &str) -> Result<Self, String> {
+        let mut parts = s.split('-');
 
         let start_str = parts.next().ok_or("Range parse failed".to_string())?;
-        let start: u16 = start_str.trim().parse().map_err(|err: ParseIntError| err.to_string())?;
+        let start: u16 = start_str.trim().parse().map_err(|e: ParseIntError| e.to_string())?;
 
         if let Some(end_str) = parts.next() {
             let end_str = end_str.trim();
@@ -49,7 +45,7 @@ impl<'a> WeakRangeParser for &'a str {
                     end: None,
                 })
             } else {
-                let end: u16 = end_str.parse().map_err(|err: ParseIntError| err.to_string())?;
+                let end: u16 = end_str.parse().map_err(|e: ParseIntError| e.to_string())?;
                 Ok(WeakRange {
                     start,
                     end: Some(end),
@@ -64,12 +60,6 @@ impl<'a> WeakRangeParser for &'a str {
     }
 }
 
-impl FromStr for WeakRange { 
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse()
-    }
-}
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkProtocol {
     UDP,
@@ -117,7 +107,7 @@ impl Strategy {
     }
 
     // !!!! MEMORY LEAK
-    if let Ok(weak_range) = filter_port.parse::<WeakRange>() {
+    if let Ok(weak_range) = WeakRange::from(filter_port) {
         strategy.filter_port = Some(weak_range);
     }
 
