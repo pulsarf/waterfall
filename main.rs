@@ -54,6 +54,10 @@ fn execute_l4_bypasses<'a>(mut socket: &'a TcpStream, config: &'a AuxConfig, cur
       continue;
     }
 
+    if !utils::check_whitelist(&strategy.filter_sni, sni_data, current_data.as_slice()) {
+        continue;
+    }
+
     if let Some(ref protocol) = strategy.filter_protocol {
         if protocol != &core::NetworkProtocol::TCP {
             continue;
@@ -288,10 +292,6 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   let config = core::parse_args();
 
   let sni_data = utils::parse_sni_index(Vec::from(data)); 
-
-  if utils::check_whitelist(&config, &sni_data, data) {
-      return data.to_vec();
-  } 
 
   let mut l5_data = execute_l5_bypasses(data);
 

@@ -207,24 +207,24 @@ pub mod utils {
     let _ = set_ttl_raw(&socket, conf.default_ttl.into());
   }
 
-  pub fn check_whitelist(config: &AuxConfig, sni_data: &(u32, u32), data: &[u8]) -> bool {
-    if sni_data != &(0, 0) && 
-      config.whitelist_sni {
-        let start = sni_data.0 as usize;
-        let end = sni_data.1 as usize;
+  pub fn check_whitelist(config: &Option<Vec<String>>, sni_data: &(u32, u32), data: &[u8]) -> bool {
+    if let Some(whitelist_sni_list) = config {
+        if sni_data != &(0, 0) {
+          let start = sni_data.0 as usize;
+          let end = sni_data.1 as usize;
 
-        let sni_slice =  &data[start..end];
+          let sni_slice =  &data[start..end];
 
-        let sni_string: String = String::from_utf8_lossy(sni_slice).to_string(); 
+          let sni_string: String = String::from_utf8_lossy(sni_slice).to_string(); 
 
-        if config.whitelist_sni_list.iter().position(|r|
-          sni_string.contains(&*r)).is_none() {
+          if whitelist_sni_list.iter().position(|r| sni_string.contains(&*r)).is_none() {
+            return true;
+          }
+        }
+
+        if sni_data == &(0, 0) {
           return true;
         }
-    }
-
-    if sni_data == &(0, 0) {
-      return true;
     }
 
     return true;

@@ -75,11 +75,12 @@ pub struct Strategy {
   pub subtract: bool,
 
   pub filter_protocol: Option<NetworkProtocol>,
-  pub filter_port: Option<WeakRange>
+  pub filter_port: Option<WeakRange>,
+  pub filter_sni: Option<Vec<String>>
 }
 
 impl Strategy {
-  pub fn from(first: String, second: String, subtract: bool, filter_protocol: &str, filter_port: &str) -> Strategy {
+  pub fn from(first: String, second: String, subtract: bool, filter_protocol: &str, filter_port: &str, filter_sni: Option<Vec<String>>) -> Strategy {
     let mut strategy: Strategy = Strategy {
       method: Strategies::NONE,
       base_index: 0,
@@ -87,7 +88,8 @@ impl Strategy {
       add_host: false,
       subtract,
       filter_protocol: None,
-      filter_port: None
+      filter_port: None,
+      filter_sni: None
     };
 
     if second.contains("s") {
@@ -106,9 +108,12 @@ impl Strategy {
         strategy.filter_protocol = Some(protocol);
     }
 
-    // !!!! MEMORY LEAK
     if let Ok(weak_range) = WeakRange::from(filter_port) {
         strategy.filter_port = Some(weak_range);
+    }
+
+    if let Some(filter_sni) = filter_sni {
+        strategy.filter_sni = Some(filter_sni);
     }
 
     if second.contains("+") {
@@ -568,11 +573,18 @@ pub fn parse_args() -> AuxConfig {
 
         config.out_of_band_charid = args[offset].parse::<u8>().expect("FATAL: out_of_band_charid argument exceeds uint8 limit.");
       },
-      "--whitelist_sni" => {
+      "--filter_sni" => {
         offset += 1 as usize;
 
         config.whitelist_sni = true;
-        config.whitelist_sni_list.push(args[offset].clone());
+
+        args[offset]
+            .split(",")
+            .for_each(|sni| config.whitelist_sni_list.push(sni.to_string()))
+      },
+      "--reset_sni_filter" => {
+          config.whitelist_sni = false;
+          config.whitelist_sni_list.drain(0..config.whitelist_sni_list.len());
       },
       "--resist_timing_attack" => {
         offset += 1 as usize;
@@ -601,7 +613,7 @@ pub fn parse_args() -> AuxConfig {
           for index in &base_opt_pos {
               config.strategies.push(DataOverride::<Strategy> {
                   active: true,
-                  data: Strategy::from("--".to_owned() + &base_strategy_name.clone(), index.to_string(), false, filter_protocol, filter_port)
+                  data: Strategy::from("--".to_owned() + &base_strategy_name.clone(), index.to_string(), false, filter_protocol, filter_port, Some(config.whitelist_sni_list.clone()))
               });
           }
 
@@ -624,14 +636,14 @@ pub fn parse_args() -> AuxConfig {
                          (base_strategy_name.contains("fake") && strategy.contains("disorder")) { 
                           config.strategies.push(DataOverride::<Strategy> {
                               active: true,
-                              data: Strategy::from("--".to_owned() + &strategy.clone(), String::from(index), true, filter_protocol, filter_port)
+                              data: Strategy::from("--".to_owned() + &strategy.clone(), String::from(index), true, filter_protocol, filter_port, Some(config.whitelist_sni_list.clone()))
                           });
                       }
                   }
               } else {
                   config.strategies.push(DataOverride::<Strategy> {
                       active: true,
-                      data: Strategy::from("--".to_owned() + &strategy, String::from(&strategy_opt_pos), false, filter_protocol, filter_port)
+                      data: Strategy::from("--".to_owned() + &strategy, String::from(&strategy_opt_pos), false, filter_protocol, filter_port, Some(config.whitelist_sni_list.clone()))
                   });
               }
           }
