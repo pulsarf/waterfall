@@ -526,6 +526,22 @@ pub fn parse_args() -> AuxConfig {
           data: hex_bytes
         };
       },
+      "--fake_packet_file" => {
+          offset += 1 as usize;
+
+          if let Some(path) = args[offset].split("file://").nth(1) {
+            let mut file: File = File::open(path).unwrap();
+
+            let mut fake_data: Vec<u8> = Vec::new();
+
+            let _ = file.read_to_end(&mut fake_data);
+
+            config.fake_packet_override_data = DataOverride::<Vec<u8>> {
+                active: true,
+                data: fake_data
+            };
+          }
+      }
       "--oob_stream_hell_data" => {
           offset += 1 as usize;
 
