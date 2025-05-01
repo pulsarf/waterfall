@@ -1,4 +1,4 @@
-start "" ../target/release/waterfall --bind_port 10000 --packet_hop 2 ^
+../target/release/waterfall --bind_port 10000 --packet_hop 2 ^
 --filter_protocol tcp --filter_port 443- --strategy_stack AB --filter_sni ntc.party --dpi_bypass_strategies tls_record_frag 7+ --reset_filter_sni ^
 --filter_sni file://list_discord.txt --filter_sni file://list_youtube.txt ^
 --filter_protocol tcp --filter_port 443- --strategy_stack BA --dpi_bypass_strategies tcp_disorder,tcp_split 2+,3+s auto ^
