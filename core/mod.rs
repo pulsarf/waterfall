@@ -213,6 +213,98 @@ pub struct AuxConfig {
   pub strategies: Vec<DataOverride::<Strategy>>,
 }
 
+struct ResultPacket {
+    seqnum: u8,
+    is_fake: bool,
+    oob: bool
+}
+
+struct StrategyStack {
+    stack: Vec<ResultPacket>
+}
+
+impl StrategyStack {
+    fn from(stack: String) -> StrategyStack {
+        let mut strategy_stack: StrategyStack = StrategyStack {
+            stack: Vec::new()
+        };
+
+        let mut seqnum: u8 = 0u8;
+
+        for symbol in stack.chars() {
+            seqnum += 1;
+
+            strategy_stack.stack.push(match symbol {
+                'A' => ResultPacket { seqnum: seqnum - 1, is_fake: false, oob: false },
+                'B' => ResultPacket { seqnum: seqnum + 1, is_fake: false, oob: false },
+                'F' => ResultPacket { seqnum, is_fake: true, oob: false },
+                'O' => ResultPacket { seqnum, is_fake: false, oob: true },
+                _ => ResultPacket { seqnum, is_fake: false, oob: false }
+            });
+        }
+
+        strategy_stack
+    }
+
+    fn can_disorder(&self) -> bool {
+        self.stack
+            .iter()
+            .filter(|x| !x.is_fake)
+            .collect::<Vec<_>>()
+            .windows(2)
+            .any(|arr| arr[0].seqnum > arr[1].seqnum)
+    }
+
+    fn can_split(&self) -> bool {
+        self.stack.len() > 1
+    }
+
+    fn has_fake_bit(&self) -> bool {
+        self.stack[0].is_fake
+    }
+
+    fn can_oob_hell(&self) -> bool {
+        self.stack
+            .iter()
+            .filter(|x| !x.is_fake)
+            .collect::<Vec<_>>()
+            .windows(3)
+            .any(|arr| !arr[0].oob && arr[1].oob && !arr[2].oob)
+    }
+
+    fn can_meltdown(&self) -> bool {
+        self.stack
+            .windows(2)
+            .any(|arr| arr[0].is_fake && !arr[1].is_fake && !arr[1].oob)
+    }
+
+    fn verify_signature(&self, strategies: Vec<Strategy>) -> Option<bool> {
+        for strategy in strategies {
+            if matches!(strategy.method, crate::Strategies::DISORDER | crate::Strategies::FAKE2DISORDER | crate::Strategies::DISOOB) && !self.can_disorder() {
+                return None;
+            }
+
+            if matches!(strategy.method, crate::Strategies::SPLIT | crate::Strategies::DISORDER2 | crate::Strategies::OOB | crate::Strategies::OOB2) && !self.can_split() {
+                return None;
+            }
+
+            if matches!(strategy.method, crate::Strategies::FAKE | crate::Strategies::FAKEMD | crate::Strategies::FAKESURROUND | crate::Strategies::FAKE2INSERT) && !self.has_fake_bit() {
+                return None;
+            }
+
+            if matches!(strategy.method, crate::Strategies::OOBSTREAMHELL) && !self.can_oob_hell() {
+                return None;
+            }
+
+            if matches!(strategy.method, crate::Strategies::MELTDOWN | crate::Strategies::MELTDOWNUDP) && !self.can_meltdown() {
+                return None;
+            }
+        }
+
+        Some(true)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DataOverride<T> {
   pub active: bool,
@@ -307,6 +399,8 @@ pub fn parse_args() -> AuxConfig {
 
   let mut filter_protocol: &str = "";
   let mut filter_port: &str = "";
+
+  let mut strategy_stack = StrategyStack::from(String::new());
 
   'reader: loop {
     if args.len() == 0 {
@@ -485,6 +579,11 @@ pub fn parse_args() -> AuxConfig {
 
         config.l7_packet_jitter_max = time::Duration::from_millis(args[offset].parse::<u8>().expect("Packet jitter should be 0-255").into());
       },
+      "--strategy_stack" => {
+        offset += 1 as usize;
+
+        strategy_stack = StrategyStack::from(args[offset].clone());
+      },
       "--dpi_bypass_strategies" => {
           offset += 1 as usize;
 
@@ -535,6 +634,14 @@ pub fn parse_args() -> AuxConfig {
                       data: Strategy::from("--".to_owned() + &strategy, String::from(&strategy_opt_pos), false, filter_protocol, filter_port)
                   });
               }
+          }
+
+          if strategy_stack.verify_signature(config.strategies
+              .clone()
+              .iter()
+              .map(|n| n.data.clone())
+              .collect::<Vec<Strategy>>()).is_none() {
+              panic!("Strategy stack violated");
           }
 
           offset += strategy_index as usize;
