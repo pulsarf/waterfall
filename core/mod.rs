@@ -2,6 +2,8 @@ use std::env;
 use std::time;
 use std::num::ParseIntError;
 use std::str::FromStr;
+use std::fs::File;
+use std::io::Read;
 
 #[derive(Debug, Clone)]
 pub enum Strategies {
@@ -577,6 +579,20 @@ pub fn parse_args() -> AuxConfig {
         offset += 1 as usize;
 
         config.whitelist_sni = true;
+
+        if let Some(path) = args[offset].split("file://").nth(1) {
+            let mut file: File = File::open(path).unwrap();
+
+            let mut hosts_list: String = String::new();
+
+            let _ = file.read_to_string(&mut hosts_list);
+
+            hosts_list
+                .split("\n")
+                .for_each(|sni| config.whitelist_sni_list.push(sni.to_string()));
+
+            continue;
+        }
 
         args[offset]
             .split(",")
