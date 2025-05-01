@@ -620,7 +620,7 @@ pub fn parse_args() -> AuxConfig {
           bypass_strategies.drain(0..1);
 
           if bypass_strategies.len() == 0 {
-              break;
+              continue;
           }
 
           let mut strategy_index = 1;

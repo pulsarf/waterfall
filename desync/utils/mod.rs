@@ -213,17 +213,21 @@ pub mod utils {
           let start = sni_data.0 as usize;
           let end = sni_data.1 as usize;
 
-          let sni_slice =  &data[start..end];
+          if data.len() <= end {
+              return false;
+          }
+
+          let sni_slice = &data[start..end];
 
           let sni_string: String = String::from_utf8_lossy(sni_slice).to_string(); 
 
           if whitelist_sni_list.iter().position(|r| sni_string.contains(&*r)).is_none() {
-            return true;
+            return false;
           }
         }
 
         if sni_data == &(0, 0) {
-          return true;
+          return false;
         }
     }
 
