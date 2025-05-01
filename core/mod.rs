@@ -589,7 +589,7 @@ pub fn parse_args() -> AuxConfig {
 
             hosts_list
                 .split("\n")
-                .for_each(|sni| config.whitelist_sni_list.push(sni.to_string()));
+                .for_each(|sni| config.whitelist_sni_list.push(sni.replace("\r", "").to_string()));
 
             continue;
         }
