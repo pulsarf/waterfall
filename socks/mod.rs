@@ -1,14 +1,43 @@
-use std::sync::Arc;
 use std::net::UdpSocket;
 
 use crate::IpParser;
 use crate::core;
 
 use std::{
-  io::{Read, Write},
+  io::{Read, Write, BufRead, BufReader, BufWriter},
   net::{TcpStream, SocketAddr},
-  thread
+  sync::Arc,
+  thread,
+  pin::Pin
 };
+
+use std::io;
+
+struct BufReaderHook<R, F> {
+    inner: BufReader<R>,
+    hook: F,
+    socket: TcpStream,
+    hops: u64,
+    max_hops: u64,
+}
+
+impl<R: Read, F> Read for BufReaderHook<R, F>
+where
+    F: Fn(&TcpStream, &[u8]) -> Vec<u8> + Send + Sync + 'static,
+{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let size = self.inner.read(buf)?;
+        if size > 0 && self.hops < self.max_hops {
+            let processed = (self.hook)(&self.socket, &buf[..size]);
+            let len = processed.len().min(buf.len());
+            buf[..len].copy_from_slice(&processed[..len]);
+            self.hops += 1;
+            Ok(len)
+        } else {
+            Ok(size)
+        }
+    }
+}
 
 fn find_udp_payload_start(packet: &[u8]) -> usize {
   if packet.len() < 4 { return 0; }
@@ -42,6 +71,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
   let _ = client.read(&mut buffer);
   
   let parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
+
   let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
 
   if parsed_data.dest_addr_type == 3 {
@@ -56,22 +86,16 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
  
   let sock_addr = match parsed_data.host_raw.len() {
     4 => {
-      let mut sl: [u8; 4] = [0, 0, 0, 0];
+      let ip_bytes: [u8; 4] = parsed_data.host_raw[..4].try_into()
+          .expect("host_raw must have at least 4 bytes for IPv4");
 
-      for iter in 0..4 {
-        sl[iter] = parsed_data.host_raw[iter];
-      }
-
-      SocketAddr::new(sl.into(), parsed_data.port)
+      SocketAddr::new(ip_bytes.into(), parsed_data.port)
     },
     16 => {
-      let mut sl: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      let ip_bytes: [u8; 16] = parsed_data.host_raw[..16].try_into()
+          .expect("host_raw must have at least 16 bytes for IPv6");
 
-      for iter in 0..16 {
-        sl[iter] = parsed_data.host_raw[iter];
-      }
-
-      SocketAddr::new(sl.into(), parsed_data.port)
+      SocketAddr::new(ip_bytes.into(), parsed_data.port)
     },
     _ => SocketAddr::new([0, 0, 0, 0].into(), parsed_data.port)
   };
@@ -90,11 +114,11 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     ];
     
     let _ = client.write_all(&udp_response);
-        
 
-    let mut client_clone = client.try_clone().unwrap();
-    let udp_socket_clone = udp_socket.try_clone().unwrap();
+    drop(udp_response);
         
+    let mut client_clone = client.try_clone().unwrap();
+    let udp_socket_clone = udp_socket.try_clone().unwrap(); 
 
     thread::spawn(move || {
       let mut buf = [0u8; 65535];
@@ -110,7 +134,6 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       }
     });
         
-
     thread::spawn(move || {
       let mut buf = [0u8; 65535];
       
@@ -141,55 +164,36 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
 
   match server_socket {
     Ok(mut socket) => {
-      let _ = client.write_all(&packet);
+      if let Err(_) = client.write_all(&packet) {
+          println!("Failed initial packet write");
+      };
 
-      let _ = socket.set_nodelay(true);
-      let _ = client.set_nodelay(true);
+      drop(packet);
 
-      let mut socket1: TcpStream = socket.try_clone().unwrap();
-      let mut client1: TcpStream = client.try_clone().unwrap();
+      socket.set_nodelay(true).unwrap_or(());
+      client.set_nodelay(true).unwrap_or(()); 
 
-      let func = Arc::new(client_hook);
-
+      let mut client_reader = client.try_clone().unwrap();
+      let socket_reader = socket.try_clone().unwrap();
+      
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 16384];
-
-        loop {
-          match socket.read(msg_buffer) {
-            Ok(size) => {
-              if size > 0 {
-                let _ = client.write_all(&msg_buffer[..size]);
-              } else { break }
-            }, Err(_error) => break
-          }
-        }
+          io::copy(
+              &mut BufReader::new(socket_reader), 
+              &mut client
+          ).unwrap_or(0);
       });
 
       thread::spawn(move || {
-        let msg_buffer: &mut [u8] = &mut [0u8; 16384];
-        let client_hook_fn = Arc::clone(&func);
-        let mut hops: u64 = 0;
+          let mut processor = BufReaderHook {
+              inner: BufReader::new(&mut client_reader),
+              hook: client_hook,
+              socket: socket.try_clone().unwrap(),
+              hops: 0,
+              max_hops: core::parse_args().packet_hop
+          };
 
-        loop {
-          match client1.read(msg_buffer) {
-            Ok(size) => {
-              if size > 0 {
-                if hops < core::parse_args().packet_hop {
-                  let data: Vec<u8> = client_hook_fn(&socket1, &msg_buffer[..size]);
-
-                  if data.len() > 1 {
-                    let _ = socket1.write_all(&data);
-
-                    hops += 1;
-                  }
-                } else {
-                  let _ = socket1.write_all(&msg_buffer[..size]);
-                }
-              } else { break }
-            }, Err(_error) => break
-          }
-        }
-      });
+          io::copy(&mut processor, &mut socket).unwrap_or(0);
+        });
     },
     Err(_) => { }
   }

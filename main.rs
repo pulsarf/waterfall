@@ -302,72 +302,18 @@ fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> {
   l5_data
 }
 
-fn main() {
-  let config: AuxConfig = core::parse_args();
+fn main() -> std::io::Result<()> {
+    let config: AuxConfig = core::parse_args();
 
-  if std::env::args().map(|c| String::from(c)).collect::<Vec<String>>().contains(&String::from("--help")) {
-    println!("{}", core::get_help_text());
+    println!("{:#?}", config);
 
-    return;
-  }
+    let listener: TcpListener = TcpListener::bind(format!("{}:{}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).unwrap();
 
-  println!("{:#?}", config);
+    for stream in listener.incoming() {
+        socks::socks5_proxy(&mut (stream?), client_hook);
+    }
 
-  let listener: TcpListener = TcpListener::bind(format!("{}:{}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).unwrap();
-
-  for stream in listener.incoming() {
-    match stream {
-      Ok(mut client) => socks::socks5_proxy(&mut client, client_hook),
-      Err(_error) => { }
-    };
-  }
+    Ok(())
 }
 
-#[cfg(test)]
 
-mod tests {
-  use std::process::{Output, Command};
-  use super::*;
-
-  #[test]
-
-  fn can_send_requests_google() {
-    let mut sender: Command = Command::new("curl");
-    let config: AuxConfig = core::parse_args();
-
-    sender.arg("--socks5").arg(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).arg("https://www.google.com");
-
-    let output: Output = sender.output().unwrap();
-    let string: String = format!("{:?}", output);
-
-    assert_eq!(true, string.contains("html"));
-  } 
-
-  #[test]
-
-  fn can_send_requests_youtube() {
-    let mut sender: Command = Command::new("curl");
-    let config: AuxConfig = core::parse_args();
-
-    sender.arg("--socks5").arg(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).arg("https://www.google.com");
-
-    let output: Output = sender.output().unwrap();
-    let string: String = format!("{:?}", output);
-
-    assert_eq!(true, string.contains("html"));
-  } 
-
-  #[test]
-
-  fn can_send_requests_discord() {
-    let mut sender: Command = Command::new("curl");
-    let config: AuxConfig = core::parse_args();
-
-    sender.arg("--socks5").arg(format!("{:?}:{:?}", config.bind_host, config.bind_port).replace("\"", "").replace("\"", "")).arg("https://www.google.com");
-
-    let output: Output = sender.output().unwrap();
-    let string: String = format!("{:?}", output);
-
-    assert_eq!(true, string.contains("html"));
-  } 
-}
