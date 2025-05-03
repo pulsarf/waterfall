@@ -168,43 +168,40 @@ pub mod utils {
     Ok(())
   }
 
+  #[cfg(unix)]
   pub fn send_drop(socket: &TcpStream, data: Vec<u8>) {
     let conf: core::AuxConfig = core::parse_args();
     let _ = set_ttl_raw(&socket, conf.fake_packet_ttl.into());
 
     if cfg!(unix) {
-      #[cfg(target_os = "linux")]
-      use libc::{send, MSG_OOB};
-      #[cfg(target_os = "linux")]
-      use std::os::unix::io::{AsRawFd};
+        use libc::{send, MSG_OOB};
+        use std::os::unix::io::{AsRawFd};
 
-      #[cfg(target_os = "linux")]
-      let fd = socket.as_raw_fd();
+        let fd = socket.as_raw_fd();
 
-      #[cfg(target_os = "linux")]
-      let _ = unsafe {
-        #[cfg(target_os = "linux")]
-        send(fd, (&data.as_slice()).as_ptr() as *const _, 1, if conf.fake_as_oob { MSG_OOB } else { 0 });
-      };
-    } else if cfg!(windows) {
-      #[cfg(target_os = "windows")]
+        let _ = unsafe {
+            send(fd, (&data.as_slice()).as_ptr() as *const _, 1, if conf.fake_as_oob { MSG_OOB } else { 0 });
+        };
+      } 
+
+      let _ = set_ttl_raw(&socket, conf.default_ttl.into());
+  }
+
+  #[cfg(windows)]
+  pub fn send_drop(socket: &TcpStream, data: Vec<u8>) {
+      let conf: core::AuxConfig = core::parse_args();
+      let _ = set_ttl_raw(&socket, conf.fake_packet_ttl.into());
+
       use winapi::um::winsock2::{send, MSG_OOB};
-      #[cfg(target_os = "windows")]
       use std::os::windows::io::{AsRawSocket, RawSocket};
 
-      #[cfg(target_os = "windows")]
       let rs: RawSocket = socket.as_raw_socket();
 
-      #[cfg(target_os = "windows")]
       let _ = unsafe {
-        #[cfg(target_os = "windows")]
         send(rs.try_into().unwrap(), (&data.as_slice()).as_ptr() as *const _, 1, if conf.fake_as_oob { MSG_OOB } else { 0 });
       };
-    } else {
-      panic!("Unsupported OS type! Cannot use Fake module");
-    }
 
-    let _ = set_ttl_raw(&socket, conf.default_ttl.into());
+      let _ = set_ttl_raw(&socket, conf.default_ttl.into());
   }
 
   pub fn check_whitelist(config: &Option<Vec<String>>, sni_data: &(u32, u32), data: &[u8]) -> bool {
@@ -221,7 +218,7 @@ pub mod utils {
 
           let sni_string: String = String::from_utf8_lossy(sni_slice).to_string(); 
 
-          if whitelist_sni_list.iter().position(|r| sni_string.contains(&*r)).is_none() {
+          if whitelist_sni_list.iter().position(|r| sni_string.contains(r)).is_none() {
             return false;
           }
         }
@@ -293,7 +290,7 @@ pub mod utils {
       if source.len() < 48 { return (0, 0) };
       if source.len() <= 5 || source[5] != 0x01 { return (0, 0) };
 
-      for i in 0..source.len().saturating_sub(8) {
+      (0..source.len().saturating_sub(8)).find_map(|i| {
           if source[i] == 0x00 && source[i + 1] == 0x00 && source[i + 7] == 0x00 && (source[i + 3] as isize - source[i + 5] as isize) == 2 {
               let len = source[i + 8] as usize;
 
@@ -301,12 +298,12 @@ pub mod utils {
               let end = start + len as usize;
             
               if end <= source.len() && len > 0 && len < 256 {
-                  return (start as u32, end as u32);
+                  return Some((start as u32, end as u32));
               }
           }
-      }
-      
-      (0, 0)
+
+          None
+      }).unwrap_or((0, 0))
   }
 
   fn get_first_ip(response_data: Vec<u8>) -> Result<String, String> {
@@ -334,144 +331,118 @@ pub mod utils {
     })
   }
 
-  pub fn doh_resolver(domain: String) -> Result<String, curl::Error> {
-    let cf_dns: &str = "https://dns.google/resolve?name={}&type=A";
+  pub fn doh_resolver(domain: String) -> Result<String, std::string::String> {
+      let cf_dns: &str = "https://dns.google/resolve?name={}&type=A";
 
-    let mut easy = Easy::new();
-    let mut response_data = Vec::new();
+      let mut easy = Easy::new();
+      let mut response_data = Vec::new();
 
-    easy.url(&cf_dns.replace("{}", &domain))?;
+      easy.url(&cf_dns.replace("{}", &domain)).map_err(|n| n.to_string())?;
 
-    easy.http_headers({
-      let mut headers = curl::easy::List::new();
-      headers.append("accept: application/dns-json")?;
+      easy.http_headers({
+          let mut headers = curl::easy::List::new();
+          headers.append("accept: application/dns-json").map_err(|n| n.to_string())?;
 
-      headers
-    })?;
+          headers
+      }).map_err(|n| n.to_string())?;
+  
+      let mut transfer = easy.transfer();
 
-    let mut transfer = easy.transfer();
+      transfer.write_function(|data| {
+          response_data.extend_from_slice(data);
+          Ok(data.len())
+      }).map_err(|n| n.to_string())?;
 
-    transfer.write_function(|data| {
-      response_data.extend_from_slice(data);
-      Ok(data.len())
-    })?;
+      transfer.perform().map_err(|n| n.to_string())?;
 
-    transfer.perform()?;
+      drop(transfer);
 
-    drop(transfer);
-
-    match crate::utils::get_first_ip(response_data) {
-        Ok(ip) => {
-            return Ok(ip);
-        }, Err(_) => {
-            return Ok(String::from("0.0.0.0"));
-        }
-    }
+      crate::utils::get_first_ip(response_data)
   }
 
+  #[cfg(unix)]
   pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>) {
+    use libc::{send, MSG_OOB};
+    use std::os::unix::io::{AsRawFd};
+
     let data1 = oob_data.as_slice();
     let oob_len = oob_data.len();
 
-    if cfg!(unix) {
-      #[cfg(unix)]
-      use libc::{send, MSG_OOB};
-      #[cfg(unix)]
-      use std::os::unix::io::{AsRawFd};
+    let fd = socket.as_raw_fd();
 
-      #[cfg(unix)]
-      let fd = socket.as_raw_fd();
-
-      #[cfg(unix)]
-      let _ = unsafe {
-        #[cfg(unix)]
+    let _ = unsafe {
         send(fd, data1.as_ptr() as *const _, oob_len.try_into().unwrap(), MSG_OOB);
-      };
-    } else if cfg!(windows) {
-      #[cfg(target_os = "windows")]
-      use winapi::um::winsock2::{send, MSG_OOB};
-      #[cfg(target_os = "windows")]
-      use std::os::windows::io::{AsRawSocket, RawSocket};
-
-      #[cfg(target_os = "windows")]
-      let rs: RawSocket = socket.as_raw_socket();
-
-      #[cfg(target_os = "windows")]
-      let _ = unsafe {
-        #[cfg(target_os = "windows")]
-        send(rs.try_into().unwrap(), data1.as_ptr() as *const _, oob_len.try_into().unwrap(), MSG_OOB);
-      };
-    } else {
-      panic!("Unsupported OS type! Cannot use Out-Of-Band/Disordered Out-Of-Band");
-    }
+    };
   }
 
+  #[cfg(target_os="windows")]
+  pub fn write_oob_multiplex(socket: &TcpStream, oob_data: Vec<u8>) {
+      use winapi::um::winsock2::{send, MSG_OOB};
+      use std::os::windows::io::{AsRawSocket, RawSocket};
+
+      let data1 = oob_data.as_slice();
+      let oob_len = oob_data.len();
+
+      let rs: RawSocket = socket.as_raw_socket();
+
+      let _ = unsafe {
+        send(rs.try_into().unwrap(), data1.as_ptr() as *const _, oob_len.try_into().unwrap(), MSG_OOB);
+      };
+  }
+  
+  #[cfg(unix)]
   pub fn disable_sack(socket: &TcpStream) {
-    if cfg!(unix) {
-      #[cfg(unix)]
       use libc::{setsockopt, IPPROTO_TCP};
-      #[cfg(unix)]
       use std::os::unix::io::AsRawFd;
 
-      #[cfg(unix)]
       let fd = socket.as_raw_fd();
 
-      #[cfg(unix)]
       let filter: [libc::sock_filter; 7] = [
-        libc::sock_filter { code: 0x30, jt: 0, jf: 0, k: 0x0000000c },
-        libc::sock_filter { code: 0x74, jt: 0, jf: 0, k: 0x00000004 },
-        libc::sock_filter { code: 0x35, jt: 3, jf: 0, k: 0x0000000b },
-        libc::sock_filter { code: 0x30, jt: 0, jf: 0, k: 0x00000022 },
-        libc::sock_filter { code: 0x15, jt: 1, jf: 0, k: 0x00000005 },
-        libc::sock_filter { code: 0x6,  jt: 0, jf: 0, k: 0x00000000 },
-        libc::sock_filter { code: 0x6,  jt: 0, jf: 0, k: 0x00040000 },
+          libc::sock_filter { code: 0x30, jt: 0, jf: 0, k: 0x0000000c },
+          libc::sock_filter { code: 0x74, jt: 0, jf: 0, k: 0x00000004 },
+          libc::sock_filter { code: 0x35, jt: 3, jf: 0, k: 0x0000000b },
+          libc::sock_filter { code: 0x30, jt: 0, jf: 0, k: 0x00000022 },
+          libc::sock_filter { code: 0x15, jt: 1, jf: 0, k: 0x00000005 },
+          libc::sock_filter { code: 0x6,  jt: 0, jf: 0, k: 0x00000000 },
+          libc::sock_filter { code: 0x6,  jt: 0, jf: 0, k: 0x00040000 },
       ];
 
-      #[cfg(unix)]
       let bpf = libc::sock_fprog {
-        len: filter.len() as libc::c_ushort,
-        filter: filter.as_ptr() as *mut libc::sock_filter,
+          len: filter.len() as libc::c_ushort,
+          filter: filter.as_ptr() as *mut libc::sock_filter,
       };
 
-      #[cfg(unix)]
       let _ = unsafe {
-        setsockopt(
-          fd,
-          libc::SOL_SOCKET,
-          libc::SO_ATTACH_FILTER,
-          &bpf as *const _ as *const libc::c_void,
-          std::mem::size_of_val(&bpf) as libc::socklen_t
-        )
+          setsockopt(
+              fd,
+              libc::SOL_SOCKET,
+              libc::SO_ATTACH_FILTER,
+              &bpf as *const _ as *const libc::c_void,
+              std::mem::size_of_val(&bpf) as libc::socklen_t
+          )
       };
-    } else if cfg!(windows) {
-      #[cfg(windows)]
+  }
+
+  #[cfg(windows)]
+  pub fn disable_sack(socket: &TcpStream) {
       use winapi::shared::ws2def::{IPPROTO_TCP, TCP_NODELAY};
-      #[cfg(windows)]
       use winapi::um::ws2tcpip::socklen_t;
-      #[cfg(windows)]
       use winapi::um::winsock2::setsockopt;
-      #[cfg(windows)]
       use std::os::windows::io::AsRawSocket;
 
-      #[cfg(windows)]
       let socket_handle = socket.as_raw_socket() as winapi::um::winsock2::SOCKET;
 
-      #[cfg(windows)]
       let disable: i32 = 1; // 1 = enable TCP_NODELAY (closest available option)
 
-      #[cfg(windows)]
       let _ = unsafe {
-        setsockopt(
-          socket_handle,
-          IPPROTO_TCP as i32,
-          TCP_NODELAY as i32,
-          &disable as *const _ as *const winapi::ctypes::c_char,
-          std::mem::size_of_val(&disable) as socklen_t
-        )
+          setsockopt(
+              socket_handle,
+              IPPROTO_TCP as i32,
+              TCP_NODELAY as i32,
+              &disable as *const _ as *const winapi::ctypes::c_char,
+              std::mem::size_of_val(&disable) as socklen_t
+          )
       };
-    } else {
-      panic!("Unsupported OS type! Cannot disable SACK.");
-    }
   }
 
 }

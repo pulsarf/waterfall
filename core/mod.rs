@@ -94,57 +94,22 @@ impl Strategy {
       filter_sni: None
     };
 
-    if second.contains("s") {
-      strategy.add_sni = true;
+    strategy.add_sni = second.contains('s');
+    strategy.add_host = second.contains('h');
+
+    strategy.filter_protocol = Some(if filter_protocol == "tcp" { NetworkProtocol::TCP } else { NetworkProtocol::UDP });
+    strategy.filter_port = WeakRange::from(filter_port).ok();
+    strategy.filter_sni = filter_sni;
+
+    let separator = if second.contains('+') { "+" } else { "-" };
+
+    let mut parts = second
+        .split(separator)
+        .map(String::from);
+
+    if let Ok(res) = parts.nth(0).unwrap().parse::<i64>() {
+        strategy.base_index = if strategy.subtract { res - 1 } else { res };
     }
-
-    if second.contains("h") {
-      strategy.add_host = true;
-    }
-
-    if let Ok(protocol) = match filter_protocol {
-        "udp" => Ok(NetworkProtocol::UDP),
-        "tcp" => Ok(NetworkProtocol::TCP),
-        _ => Err(".")
-    } {
-        strategy.filter_protocol = Some(protocol);
-    }
-
-    if let Ok(weak_range) = WeakRange::from(filter_port) {
-        strategy.filter_port = Some(weak_range);
-    }
-
-    if let Some(filter_sni) = filter_sni {
-        strategy.filter_sni = Some(filter_sni);
-    }
-
-    if second.contains("+") {
-      let parts: Vec<String> = second
-        .split("+")
-        .map(|str| String::from(str))
-        .collect();
-      
-      match parts[0].parse::<i64>() {
-        Ok(res) => {
-          strategy.base_index = if strategy.subtract { res - 1 } else { res };
-        },
-        Err(_) => { }
-      };
-    };
-
-    if second.contains("-") {
-      let parts: Vec<String> = second
-        .split("-")
-        .map(|str| String::from(str))
-        .collect();
-      
-      match parts[0].parse::<i64>() {
-        Ok(res) => {
-          strategy.base_index = if strategy.subtract { -(res + 1) } else { -res };
-        },
-        Err(_) => { }
-      };
-    };
 
     strategy.method = match first.as_str() {
       "--tcp_split" => Strategies::SPLIT,
@@ -221,7 +186,7 @@ pub struct AuxConfig {
 }
 
 struct ResultPacket {
-    seqnum: u8,
+    seqnum: usize,
     is_fake: bool,
     oob: bool
 }
@@ -236,19 +201,16 @@ impl StrategyStack {
             stack: Vec::new()
         };
 
-        let mut seqnum: u8 = 0u8;
-
-        for symbol in stack.chars() {
-            seqnum += 1;
-
-            strategy_stack.stack.push(match symbol {
-                'A' => ResultPacket { seqnum: seqnum - 1, is_fake: false, oob: false },
-                'B' => ResultPacket { seqnum: seqnum + 1, is_fake: false, oob: false },
-                'F' => ResultPacket { seqnum, is_fake: true, oob: false },
-                'O' => ResultPacket { seqnum, is_fake: false, oob: true },
-                _ => ResultPacket { seqnum, is_fake: false, oob: false }
-            });
-        }
+        stack
+            .chars()
+            .enumerate()
+            .for_each(|(i, symbol)| strategy_stack.stack.push(match symbol {
+                'A' => ResultPacket { seqnum: i - 1, is_fake: false, oob: false },
+                'B' => ResultPacket { seqnum: i + 1, is_fake: false, oob: false },
+                'F' => ResultPacket { seqnum: i, is_fake: true, oob: false },
+                'O' => ResultPacket { seqnum: i, is_fake: false, oob: true },
+                _ => ResultPacket { seqnum: i, is_fake: false, oob: false }
+            }));
 
         strategy_stack
     }
@@ -287,24 +249,27 @@ impl StrategyStack {
 
     fn verify_signature(&self, strategies: Vec<Strategy>) -> Option<bool> {
         for strategy in strategies {
-            if matches!(strategy.method, crate::Strategies::DISORDER | crate::Strategies::FAKE2DISORDER | crate::Strategies::DISOOB) && !self.can_disorder() {
-                return None;
-            }
+            match strategy.method {
+                crate::Strategies::DISORDER | 
+                crate::Strategies::FAKE2DISORDER | 
+                crate::Strategies::DISOOB if !self.can_disorder() => return None,
 
-            if matches!(strategy.method, crate::Strategies::SPLIT | crate::Strategies::DISORDER2 | crate::Strategies::OOB | crate::Strategies::OOB2) && !self.can_split() {
-                return None;
-            }
+                crate::Strategies::SPLIT | 
+                crate::Strategies::DISORDER2 | 
+                crate::Strategies::OOB | 
+                crate::Strategies::OOB2 if !self.can_split() => return None,
 
-            if matches!(strategy.method, crate::Strategies::FAKE | crate::Strategies::FAKEMD | crate::Strategies::FAKESURROUND | crate::Strategies::FAKE2INSERT) && !self.has_fake_bit() {
-                return None;
-            }
+                crate::Strategies::FAKE | 
+                crate::Strategies::FAKEMD | 
+                crate::Strategies::FAKESURROUND | 
+                crate::Strategies::FAKE2INSERT if !self.has_fake_bit() => return None,
 
-            if matches!(strategy.method, crate::Strategies::OOBSTREAMHELL) && !self.can_oob_hell() {
-                return None;
-            }
+                crate::Strategies::OOBSTREAMHELL if !self.can_oob_hell() => return None,
 
-            if matches!(strategy.method, crate::Strategies::MELTDOWN | crate::Strategies::MELTDOWNUDP) && !self.can_meltdown() {
-                return None;
+                crate::Strategies::MELTDOWN | 
+                crate::Strategies::MELTDOWNUDP if !self.can_meltdown() => return None,
+            
+                _ => (),
             }
         }
 
@@ -322,6 +287,15 @@ use socket2::{Socket, Domain, Type, Protocol};
 use std::{net::{TcpStream, SocketAddr}, io};
 use std::thread;
 
+fn cutoff_options(so_clone: Socket, so_opt_cutoff: u64) {
+    thread::spawn(move || {
+        thread::sleep(time::Duration::from_millis(so_opt_cutoff));
+
+        so_clone.set_recv_buffer_size(16653).unwrap();
+        so_clone.set_send_buffer_size(16653).unwrap();
+    });
+}
+
 pub fn connect_socket(addr: SocketAddr) -> io::Result<TcpStream> {
     let domain_type = if addr.is_ipv4() {
         Domain::IPV4
@@ -338,14 +312,7 @@ pub fn connect_socket(addr: SocketAddr) -> io::Result<TcpStream> {
     socket.set_nodelay(true)?;
     socket.set_keepalive(true)?;
 
-    let so_clone = socket.try_clone().unwrap();
-
-    thread::spawn(move || {
-        thread::sleep(time::Duration::from_millis(so_opt_cutoff));
-
-        let _ = so_clone.set_recv_buffer_size(16653);
-        let _ = so_clone.set_send_buffer_size(16653);
-    });
+    cutoff_options(socket.try_clone().unwrap(), so_opt_cutoff);
 
     if domain_type == Domain::IPV6 {
         socket.set_only_v6(false)?;
@@ -399,8 +366,7 @@ pub fn parse_args() -> AuxConfig {
     strategies: vec![],
   };
 
-  let mut args: Vec<String> = env::args().collect();
-  args.drain(0..1);
+  let mut args: Vec<String> = env::args().skip(1).collect();
 
   let mut offset: usize = 0 as usize;
 
