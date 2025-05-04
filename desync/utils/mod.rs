@@ -1,7 +1,6 @@
 
 pub mod utils {
   use curl::easy::Easy;
-  use serde_json;
   use std::net::TcpStream;
   use crate::core;
   use std::io;
@@ -305,29 +304,51 @@ pub mod utils {
       }).unwrap_or((0, 0))
   }
 
-  fn get_first_ip(response_data: Vec<u8>) -> Result<String, String> {
-    serde_json::from_str::<serde_json::Value>(&match String::from_utf8(response_data) {
-      Ok(res) => res,
-      Err(_) => return Err("Malformed request body".to_string()),
-    })
-    .map_err(|_| "JSON Parse error".to_string())
-    .and_then(|json| {
-      json.get("Answer")
-        .and_then(|answers| answers.as_array().cloned())
-        .ok_or("Malformed Answer".to_string())
-    })
-    .and_then(|answers| {
-      answers
-        .iter()
-        .find_map(|answer| {
-          answer
-            .get("data")
-            .and_then(|data| data.as_str())
-            .filter(|data| data.parse::<std::net::IpAddr>().is_ok())
-            .map(|ip| ip.to_string())
+  // TODO: This is ugly, but fast. Make it less crude
+
+  fn find_ip(data: Vec<u8>) -> Option<String> {
+    String::from_utf8(data)
+        .map_err(|_| ())
+        .and_then(|text| {
+            let mut digits = 0;
+            let mut dots = 0;
+            let mut start = None;
+
+            for (i, c) in text.char_indices() {
+                match c {
+                    '0'..='9' => {
+                        if start.is_none() { start = Some(i); }
+                        digits += 1;
+                        
+                        if i == text.len() - 1 && dots == 3 && digits > 0 {
+                            return Ok(text[start.unwrap()..=i].to_string());
+                        }
+                    },
+                    '.' if digits > 0 => {
+                        dots += 1;
+                        digits = 0;
+                        
+                        if dots > 3 {
+                            digits = 0;
+                            dots = 0;
+                            start = None;
+                        }
+                    },
+                    _ => {
+                        if dots == 3 && digits > 0 {
+                            return Ok(text[start.unwrap()..i].to_string());
+                        }
+                        
+                        digits = 0;
+                        dots = 0;
+                        start = None;
+                    }
+                }
+            }
+
+            Err(())
         })
-        .ok_or("400".to_string())
-    })
+        .ok()
   }
 
   pub fn doh_resolver(domain: String) -> Result<String, std::string::String> {
@@ -356,7 +377,7 @@ pub mod utils {
 
       drop(transfer);
 
-      crate::utils::get_first_ip(response_data)
+      crate::utils::find_ip(response_data).ok_or(String::new())
   }
 
   #[cfg(unix)]

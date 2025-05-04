@@ -22,17 +22,17 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let size = self.inner.read(buf)?;
-        if size > 0 && self.hops < self.max_hops {
-            let processed = (self.hook)(&self.socket, &buf[..size]);
-            
-            buf[..processed.len()].copy_from_slice(&processed);
-
-            self.hops += 1;
-
-            return Ok(processed.len());
+        if size == 0 || self.hops < self.max_hops {
+            return Ok(size);
         }
-        
-        Ok(size)
+
+        let processed = (self.hook)(&self.socket, &buf[..size]);
+            
+        buf[..processed.len()].copy_from_slice(&processed);
+
+        self.hops += 1;
+
+        Ok(processed.len())
     }
 }
 
