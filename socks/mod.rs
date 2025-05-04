@@ -10,7 +10,6 @@ use std::{
   thread,
   pin::Pin
 };
-
 use std::io;
 
 struct BufReaderHook<R, F> {
@@ -54,23 +53,25 @@ fn find_udp_payload_start(packet: &[u8]) -> usize {
 }
 
 pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStream, &[u8]) -> Vec<u8> + std::marker::Sync + std::marker::Send + 'static) {
-  let mut client: TcpStream = proxy_client.try_clone().unwrap();
+  proxy_client
+    .try_clone()
+    .and_then(|mut client| {
 
   let mut buffer = [0 as u8; 128];
 
-  let _ = client.set_nodelay(true);
-  let _ = client.read(&mut buffer);
+  client.set_nodelay(true).unwrap();
+  client.read(&mut buffer).unwrap();
 
   if buffer[0] != 5 {
       let _ = client.write_all(&[5, 0]);
 
-      return;
+      return Ok(());
   }
   
-  let _ = client.write_all(&[5, 0]);
-  let _ = client.read(&mut buffer);
+  client.write_all(&[5, 0]).unwrap();
+  client.read(&mut buffer).unwrap();
   
-  let parsed_data: IpParser = IpParser::parse(Vec::from(buffer));
+  let parsed_data: IpParser = IpParser::parse(&buffer);
 
   let mut packet: Vec<u8> = vec![5, 0, 0, parsed_data.dest_addr_type];
 
@@ -78,12 +79,9 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
     packet.extend_from_slice(&[parsed_data.host_unprocessed.len().try_into().unwrap()]);
   }
 
-  packet.extend_from_slice(&parsed_data.host_unprocessed.as_slice());
+  packet.extend_from_slice(&parsed_data.host_unprocessed);
   packet.extend_from_slice(&parsed_data.port.to_be_bytes());
 
-  // Create a socket connection and pipe to messages receiver 
-  // Which is wrapped in other function
- 
   let sock_addr = match parsed_data.host_raw.len() {
     4 => {
       let ip_bytes: [u8; 4] = parsed_data.host_raw[..4].try_into()
@@ -101,63 +99,7 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
   };
 
   if parsed_data.is_udp {
-    println!("UDP Associate Requested");
-        
-    let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    let udp_port = udp_socket.local_addr().unwrap().port();
-        
-
-    let udp_response = vec![
-      5, 0, 0, 1,
-      0, 0, 0, 0,
-      (udp_port >> 8) as u8, (udp_port & 0xFF) as u8 
-    ];
-    
-    let _ = client.write_all(&udp_response);
-
-    drop(udp_response);
-        
-    let mut client_clone = client.try_clone().unwrap();
-    let udp_socket_clone = udp_socket.try_clone().unwrap(); 
-
-    thread::spawn(move || {
-      let mut buf = [0u8; 65535];
-
-      loop {
-        match udp_socket.recv_from(&mut buf) {
-          Ok((size, _src)) => {
-            let payload_start = find_udp_payload_start(&buf[..size]);
-            let _ = client_clone.write_all(&buf[payload_start..size]);
-          },
-          Err(_) => break,
-        }
-      }
-    });
-        
-    thread::spawn(move || {
-      let mut buf = [0u8; 65535];
-      
-      loop {
-        match client.read(&mut buf) {
-          Ok(size) => {
-            if size == 0 { break; }
-
-            let mut packet = Vec::with_capacity(size + 10);
-            packet.extend(&[0, 0, 0]);
-            packet.push(1);
-            packet.extend(&[0, 0, 0, 0]);
-            packet.extend(&[0, 0]);
-            packet.extend(&buf[..size]);
-            
-            let _ = udp_socket_clone.send_to(&packet, sock_addr);
-
-          },
-          Err(_) => break,
-        }
-      }
-    });
-        
-    return;
+      todo!();
   }
 
   let server_socket = core::connect_socket(sock_addr);
@@ -173,9 +115,17 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       socket.set_nodelay(true).unwrap_or(());
       client.set_nodelay(true).unwrap_or(()); 
 
-      let mut client_reader = client.try_clone().unwrap();
-      let socket_reader = socket.try_clone().unwrap();
-      
+      let mut client_reader = client.try_clone().expect("Failed to clone client");
+      let socket_reader = socket.try_clone().expect("Failed to clone socket");
+
+      let mut processor = BufReaderHook {
+          inner: BufReader::new(client_reader),
+          hook: client_hook,
+          socket: socket.try_clone().unwrap(),
+          hops: 0,
+          max_hops: core::parse_args().packet_hop
+      };
+
       thread::spawn(move || {
           io::copy(
               &mut BufReader::new(socket_reader), 
@@ -184,17 +134,13 @@ pub fn socks5_proxy(proxy_client: &mut TcpStream, client_hook: impl Fn(&TcpStrea
       });
 
       thread::spawn(move || {
-          let mut processor = BufReaderHook {
-              inner: BufReader::new(&mut client_reader),
-              hook: client_hook,
-              socket: socket.try_clone().unwrap(),
-              hops: 0,
-              max_hops: core::parse_args().packet_hop
-          };
-
           io::copy(&mut processor, &mut socket).unwrap_or(0);
-        });
+      });
     },
     Err(_) => { }
   }
+Ok(())
+  
+  })
+  .map(|()| String::new());
 }
