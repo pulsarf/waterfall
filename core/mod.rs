@@ -1,7 +1,6 @@
 use std::env;
 use std::time;
 use std::num::ParseIntError;
-use std::str::FromStr;
 use std::fs::File;
 use std::io::Read;
 
@@ -366,7 +365,7 @@ pub fn parse_args() -> AuxConfig {
     strategies: vec![],
   };
 
-  let mut args: Vec<String> = env::args().skip(1).collect();
+  let args: Vec<String> = env::args().skip(1).collect();
 
   let mut offset: usize = 0 as usize;
 

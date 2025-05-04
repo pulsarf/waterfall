@@ -2,7 +2,6 @@
 pub mod utils {
   use curl::easy::Easy;
   use serde_json;
-  use crate::AuxConfig;
   use std::net::TcpStream;
   use crate::core;
   use std::io;

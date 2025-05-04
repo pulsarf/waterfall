@@ -288,7 +288,7 @@ fn execute_l7_bypasses(config: &AuxConfig) {
   }
 }
 
-fn client_hook(mut socket: &TcpStream, data: &[u8]) -> Vec<u8> { 
+fn client_hook(socket: &TcpStream, data: &[u8]) -> Vec<u8> { 
   let config = core::parse_args();
 
   let sni_data = utils::parse_sni_index(Vec::from(data)); 
