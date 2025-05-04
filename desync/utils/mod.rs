@@ -44,6 +44,16 @@ pub mod utils {
         3 => {
           let domain_length = buffer[4] as usize;
 
+          if 6 + domain_length >= buffer.len() {
+              return IpParser {
+                  dest_addr_type,
+                  host_raw: vec![0, 0, 0, 0],
+                  host_unprocessed: &[0, 0, 0, 0],
+                  port: 0,
+                  is_udp
+              };
+          }
+
           let domain = &buffer[5..5 + domain_length];
           let port = u16::from_be_bytes([buffer[5 + domain_length], buffer[6 + domain_length]]);
  
