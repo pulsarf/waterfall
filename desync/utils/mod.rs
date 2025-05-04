@@ -11,16 +11,16 @@ pub mod utils {
   use std::net::{IpAddr};
 
   #[derive(Debug, Clone)]
-  pub struct IpParser {
+  pub struct IpParser<'a> {
     pub host_raw: Vec<u8>,
-    pub host_unprocessed: Vec<u8>,
+    pub host_unprocessed: &'a [u8],
     pub port: u16,
     pub dest_addr_type: u8,
     pub is_udp: bool,
   }
 
-  impl IpParser {
-    pub fn parse(buffer: Vec<u8>) -> IpParser {
+  impl IpParser<'_> {
+    pub fn parse(buffer: &[u8]) -> IpParser {
       let dest_addr_type = buffer[3];
       let is_udp = buffer[1] == 0x03;
 
@@ -29,8 +29,8 @@ pub mod utils {
           if buffer.len() < 10 {
             return IpParser {
               dest_addr_type,
-              host_raw: vec![0; 4],
-              host_unprocessed: vec![0; 4],
+              host_raw: vec![0, 0, 0, 0],
+              host_unprocessed: &[0, 0, 0, 0],
               port: 0,
               is_udp
             };
@@ -38,7 +38,7 @@ pub mod utils {
           IpParser {
             dest_addr_type,
             host_raw: buffer[4..8].to_vec(),
-            host_unprocessed: buffer[4..8].to_vec(),
+            host_unprocessed: &buffer[4..8],
             port: u16::from_be_bytes([buffer[8], buffer[9]]),
             is_udp
           }
@@ -52,14 +52,14 @@ pub mod utils {
           if let Ok(domain_str) = std::str::from_utf8(domain) {
             if let Ok(ip_addr) = domain_str.parse::<IpAddr>() {
               let ip_buffer = match ip_addr {
-                IpAddr::V4(ip) => ip.octets().to_vec(),
-                IpAddr::V6(ip) => ip.octets().to_vec(),
+                  IpAddr::V4(ip) => ip.octets().to_vec(),
+                  IpAddr::V6(ip) => ip.octets().to_vec(),
               };
 
               return IpParser {
                 dest_addr_type,
                 host_raw: ip_buffer,
-                host_unprocessed: domain.to_vec(),
+                host_unprocessed: &domain,
                 port,
                 is_udp
               };
@@ -75,7 +75,7 @@ pub mod utils {
                 return IpParser {
                   dest_addr_type,
                   host_raw: ip_buffer,
-                  host_unprocessed: domain.to_vec(),
+                  host_unprocessed: &domain,
                   port,
                   is_udp
                 };
@@ -85,8 +85,8 @@ pub mod utils {
 
           IpParser {
             dest_addr_type,
-            host_raw: vec![0; 4],
-            host_unprocessed: domain.to_vec(),
+            host_raw: vec![0, 0, 0, 0],
+            host_unprocessed: &domain,
             port,
             is_udp
           }
@@ -95,8 +95,8 @@ pub mod utils {
           if buffer.len() < 22 {
             return IpParser {
               dest_addr_type,
-              host_raw: vec![0; 16],
-              host_unprocessed: vec![0; 16],
+              host_raw: vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+              host_unprocessed: &[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
               port: 0,
               is_udp
             };
@@ -104,7 +104,7 @@ pub mod utils {
           IpParser {
             dest_addr_type,
             host_raw: buffer[4..20].to_vec(),
-            host_unprocessed: buffer[4..20].to_vec(),
+            host_unprocessed: &buffer[4..20],
             port: u16::from_be_bytes([buffer[20], buffer[21]]),
             is_udp
           }
@@ -112,8 +112,8 @@ pub mod utils {
         _ => {
           IpParser {
             dest_addr_type,
-            host_raw: vec![],
-            host_unprocessed: vec![],
+            host_raw: [0, 0, 0, 0].to_vec(),
+            host_unprocessed: &[0, 0, 0, 0],
             port: 0,
             is_udp
           }
